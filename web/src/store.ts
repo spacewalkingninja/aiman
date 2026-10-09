@@ -334,6 +334,13 @@ export async function bootstrap() {
   } catch {
     set({ onboarded: true });
   }
+  // Check GitHub releases for an update (non-blocking, cached server-side).
+  api
+    .update()
+    .then((u) => {
+      if (u.available && u.latest) toast(`Update available: v${u.latest} — see Settings`);
+    })
+    .catch(() => {});
   await applyLocation();
   set({ routeReady: true });
   connectEvents();

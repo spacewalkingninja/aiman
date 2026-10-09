@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-09
+
+### Added
+- **Update checks from GitHub Releases.** On WebUI load the server checks the
+  latest release (cached for an hour) and notifies you if a newer version is
+  available. Settings → **Updates** shows installed vs latest and has
+  *Check for updates* and, for admins, *Update now* — which downloads the
+  release tarball and overlays the app files (user data in `AIMAN_HOME` is
+  untouched), then asks you to restart.
+- New endpoints: `GET /api/update`, `POST /api/update/apply`.
+
+### Fixed
+- **Diff now lists changed files even when opencode reports none.** opencode's
+  per-session diff is empty for projects it doesn't track, so the diff view
+  falls back to the files touched by the session's `edit`/`write`/`patch` tool
+  calls, shown as a scrollable list.
+
 ## [1.4.1] - 2026-10-09
 
 ### Fixed

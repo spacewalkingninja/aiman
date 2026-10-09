@@ -31,6 +31,16 @@ export type Session = {
   usage: Usage | null;
 };
 
+export type UpdateInfo = {
+  current: string;
+  latest: string | null;
+  available: boolean;
+  url?: string | null;
+  notes?: string;
+  publishedAt?: string | null;
+  error?: string;
+};
+
 export type TreeNode = {
   name: string;
   path: string;
@@ -349,7 +359,19 @@ export const api = {
 
   config: () =>
     fetch("/api/config").then(
-      j<{ opencodeUrl: string; terminal: boolean; platform: string; onboarded: boolean }>,
+      j<{
+        opencodeUrl: string;
+        terminal: boolean;
+        platform: string;
+        onboarded: boolean;
+        version: string;
+      }>,
+    ),
+  update: (force = false) =>
+    fetch("/api/update" + (force ? "?check=1" : "")).then(j<UpdateInfo>),
+  applyUpdate: () =>
+    fetch("/api/update/apply", { method: "POST" }).then(
+      j<{ ok: boolean; latest: string; restartRequired: boolean }>,
     ),
   setOnboarded: (onboarded: boolean) =>
     fetch("/api/me/onboarded", {

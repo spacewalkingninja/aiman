@@ -128,11 +128,8 @@ export default function ChatView() {
           </button>
         </div>
         {diff && (
-          <div className="small" style={{ padding: "6px 20px", borderBottom: "1px solid var(--border)" }}>
-            <b>Changed files:</b> {(diff.files ?? []).join(", ") || "none"}{" "}
-            <button className="btn ghost sm" onClick={() => setDiff(null)}>
-              hide
-            </button>
+          <div style={{ padding: "6px 20px", borderBottom: "1px solid var(--border)" }}>
+            <DiffFiles diff={diff} onClose={() => setDiff(null)} />
           </div>
         )}
         {showStats && (
@@ -149,12 +146,31 @@ export default function ChatView() {
 
   async function loadDiff() {
     const raw: any = await api.diff(id, session?.directory).catch(() => null);
-    if (!raw) return setDiff(null);
     // opencode returns an array of { file, patch, additions, deletions };
     // tolerate the older { files: [...] } shape too.
-    const files: string[] = Array.isArray(raw)
+    let files: string[] = Array.isArray(raw)
       ? raw.map((x: any) => x?.file ?? x?.path ?? String(x))
-      : (raw.files ?? []);
+      : (raw?.files ?? []);
+
+    // Fallback: opencode's per-session diff is empty when the project isn't
+    // tracked. Derive changed files from the session's edit/write/patch parts.
+    if (!files.length) {
+      const set = new Set<string>();
+      for (const e of entries) {
+        for (const p of e.parts) {
+          if (p.type === "tool") {
+            const name = String(p.tool ?? "").toLowerCase();
+            const inp = p.state?.input ?? {};
+            const fp = inp.filePath ?? inp.file_path ?? inp.path ?? inp.filename;
+            if (fp && /edit|write|patch|multiedit|create/.test(name)) set.add(String(fp));
+          }
+          if (p.type === "patch" && Array.isArray(p.files)) {
+            for (const f of p.files) set.add(String(f));
+          }
+        }
+      }
+      files = [...set];
+    }
     setDiff({ files });
   }
 
@@ -231,14 +247,7 @@ export default function ChatView() {
               ))}
             </div>
           )}
-          {diff && (
-            <div className="small">
-              <b>Changed files:</b> {(diff.files ?? []).join(", ") || "none"}{" "}
-              <button className="btn ghost sm" onClick={() => setDiff(null)}>
-                hide
-              </button>
-            </div>
-          )}
+          {diff && <DiffFiles diff={diff} onClose={() => setDiff(null)} />}
           {todos.length > 0 && (
             <div className="small" style={{ marginTop: diff ? 6 : 0 }}>
               {todos.map((t) => (
@@ -449,6 +458,24 @@ const MessageRow = memo(function MessageRow({ entry }: { entry: MessageEntry }) 
     </div>
   );
 });
+
+function DiffFiles({ diff, onClose }: { diff: { files: string[] }; onClose: () => void }) {
+  return (
+    <div className="small">
+      <b>Changed files{diff.files.length ? ` (${diff.files.length})` : ""}:</b>{" "}
+      <button className="btn ghost sm" onClick={onClose}>
+        hide
+      </button>
+      <div className="diff-files-list">
+        {diff.files.length ? (
+          diff.files.map((f) => <div key={f}>{f}</div>)
+        ) : (
+          <span className="muted">none recorded for this session</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function SessionStatsCard({
   stats,

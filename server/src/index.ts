@@ -1,4 +1,13 @@
-import { basename, extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
+import {
+  basename,
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  normalize,
+  relative,
+  resolve,
+} from "node:path";
 import { readdir, stat } from "node:fs/promises";
 import { syncFts, pruneFts, search } from "./fts";
 import { aggregateStats, sessionStats, usageBySession } from "./stats";
@@ -58,7 +67,26 @@ import {
   type SessionRow,
 } from "./manager";
 
-import { PORT, HOST, OPENCODE_URL, DIST, TERMINAL_URL } from "./config";
+import {
+  PORT,
+  HOST,
+  OPENCODE_URL,
+  DIST,
+  TERMINAL_URL,
+  APP_ROOT,
+  VERSION,
+  UPDATE_REPO,
+} from "./config";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 
 const json = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(data), {
@@ -414,6 +442,109 @@ async function buildTree(
   return out;
 }
 
+// ---- update check / apply (GitHub releases) -------------------------------
+
+let updateCache: { at: number; data: any } | null = null;
+
+function semverGt(a: string, b: string): boolean {
+  const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] ?? 0) > (pb[i] ?? 0)) return true;
+    if ((pa[i] ?? 0) < (pb[i] ?? 0)) return false;
+  }
+  return false;
+}
+
+async function fetchLatest(force = false): Promise<any> {
+  if (!force && updateCache && Date.now() - updateCache.at < 60 * 60 * 1000) {
+    return updateCache.data;
+  }
+  try {
+    const res = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
+      headers: { "user-agent": "aiman", accept: "application/vnd.github+json" },
+    });
+    if (!res.ok) throw new Error(`github ${res.status}`);
+    const j: any = await res.json();
+    const latest = String(j.tag_name ?? "").replace(/^v/, "");
+    const data = {
+      current: VERSION,
+      latest,
+      available: latest ? semverGt(latest, VERSION) : false,
+      url: j.html_url ?? null,
+      notes: String(j.body ?? "").slice(0, 2000),
+      publishedAt: j.published_at ?? null,
+      assets: (j.assets ?? []).map((a: any) => ({ name: a.name, url: a.browser_download_url })),
+    };
+    updateCache = { at: Date.now(), data };
+    return data;
+  } catch (e) {
+    return { current: VERSION, latest: null, available: false, error: String(e) };
+  }
+}
+
+function copyRecursive(src: string, dest: string): void {
+  const st = statSync(src);
+  if (st.isDirectory()) {
+    mkdirSync(dest, { recursive: true });
+    for (const name of readdirSync(src)) copyRecursive(join(src, name), join(dest, name));
+  } else {
+    mkdirSync(dirname(dest), { recursive: true });
+    copyFileSync(src, dest);
+  }
+}
+
+/**
+ * Download the latest release tarball and overlay its app files onto APP_ROOT.
+ * User data lives in AIMAN_HOME, so it is untouched. A server restart is needed
+ * for new server code to take effect.
+ */
+async function applyUpdate(): Promise<{ ok: boolean; latest: string; restartRequired: boolean }> {
+  const info = await fetchLatest(true);
+  if (!info?.available || !info.latest) throw new Error(info?.error ?? "no update available");
+  const asset =
+    (info.assets || []).find((a: any) => a.name.endsWith(".tar.gz")) ??
+    (info.assets || []).find((a: any) => a.name.endsWith(".zip"));
+  if (!asset) throw new Error("release has no downloadable asset");
+
+  const tmp = mkdtempSync(join(tmpdir(), "aiman-update-"));
+  try {
+    const file = join(tmp, asset.name);
+    const res = await fetch(asset.url);
+    if (!res.ok) throw new Error(`download failed: ${res.status}`);
+    await Bun.write(file, res);
+
+    // `tar` handles .tar.gz on all platforms and .zip on Windows/macOS (bsdtar).
+    const extract = Bun.spawnSync(["tar", "-xf", file, "-C", tmp]);
+    if (!extract.success) throw new Error(`extract failed: ${extract.stderr.toString()}`);
+
+    const dir = readdirSync(tmp).find((n) => n.startsWith("aiman-"));
+    if (!dir) throw new Error("unexpected archive layout");
+    const src = join(tmp, dir);
+
+    const items = [
+      "bin",
+      "server",
+      "dist",
+      "scripts",
+      "deploy",
+      "package.json",
+      "README.md",
+      "LICENSE",
+      "CHANGELOG.md",
+    ];
+    for (const item of items) {
+      const from = join(src, item);
+      if (existsSync(from)) copyRecursive(from, join(APP_ROOT, item));
+    }
+    return { ok: true, latest: info.latest, restartRequired: true };
+  } finally {
+    try {
+      rmSync(tmp, { recursive: true, force: true });
+    } catch {}
+  }
+}
+
 async function handle(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const p = url.pathname;
@@ -622,7 +753,21 @@ async function handle(req: Request): Promise<Response> {
       terminal,
       platform: process.platform,
       onboarded: getUserOnboarded(user!.id),
+      version: VERSION,
     });
+  }
+
+  if (p === "/api/update" && method === "GET") {
+    return json(await fetchLatest(url.searchParams.has("check")));
+  }
+
+  if (p === "/api/update/apply" && method === "POST") {
+    if (!user!.is_admin) return json({ error: "forbidden" }, 403);
+    try {
+      return json(await applyUpdate());
+    } catch (e) {
+      return json({ error: String(e) }, 500);
+    }
   }
 
   if (p === "/api/me/onboarded" && method === "POST") {

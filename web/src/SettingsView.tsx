@@ -1,18 +1,52 @@
 import { useEffect, useState } from "react";
-import { api } from "./api";
-import { setChatMode, setTheme, store, useStore } from "./store";
+import { api, type UpdateInfo } from "./api";
+import { setChatMode, setTheme, store, toast, useStore } from "./store";
 import { THEMES } from "./themes";
 
 export default function SettingsView() {
   const s = useStore();
-  const [cfg, setCfg] = useState<{ opencodeUrl: string; terminal: boolean } | null>(null);
+  const me = s.auth.user;
+  const [cfg, setCfg] = useState<{ opencodeUrl: string; terminal: boolean; version?: string } | null>(
+    null,
+  );
+  const [upd, setUpd] = useState<UpdateInfo | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [applying, setApplying] = useState(false);
 
   useEffect(() => {
     api
       .config()
       .then(setCfg)
       .catch(() => {});
+    api
+      .update()
+      .then(setUpd)
+      .catch(() => {});
   }, []);
+
+  async function checkUpdate(force: boolean) {
+    setChecking(true);
+    try {
+      setUpd(await api.update(force));
+    } catch (e) {
+      toast(String(e));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function doUpdate() {
+    setApplying(true);
+    try {
+      const r = await api.applyUpdate();
+      toast(`Updated to v${r.latest} — restart aiman to apply`);
+      await checkUpdate(true);
+    } catch (e) {
+      toast(`Update failed: ${e}`);
+    } finally {
+      setApplying(false);
+    }
+  }
 
   const mode = s.chatMode;
 
@@ -120,6 +154,50 @@ export default function SettingsView() {
           </tr>
         </tbody>
       </table>
+
+      <h3 style={{ marginTop: 24 }}>Updates</h3>
+      <table className="markdown" style={{ width: "100%" }}>
+        <tbody>
+          <tr>
+            <td>Installed</td>
+            <td>
+              <code>v{cfg?.version ?? "…"}</code>
+            </td>
+          </tr>
+          <tr>
+            <td>Latest release</td>
+            <td>
+              {upd?.error ? (
+                <span className="muted">couldn't reach GitHub</span>
+              ) : (
+                <code>v{upd?.latest ?? "…"}</code>
+              )}{" "}
+              {upd?.available && <span className="badge running">update available</span>}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+        <button className="btn sm" disabled={checking} onClick={() => checkUpdate(true)}>
+          {checking ? "checking…" : "Check for updates"}
+        </button>
+        {upd?.available && me?.is_admin && (
+          <button className="btn sm primary" disabled={applying} onClick={doUpdate}>
+            {applying ? "updating…" : "Update now"}
+          </button>
+        )}
+        {upd?.url && (
+          <a className="btn sm ghost" href={upd.url} target="_blank" rel="noreferrer">
+            Release notes
+          </a>
+        )}
+      </div>
+      {upd?.available && !me?.is_admin && (
+        <p className="muted small">An administrator can apply this update.</p>
+      )}
+      {upd && !upd.available && !upd.error && (
+        <p className="muted small">You're on the latest version.</p>
+      )}
 
       <div style={{ marginTop: 24 }}>
         <button className="btn ghost" onClick={() => store.set({ view: "chat" })}>

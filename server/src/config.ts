@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -49,6 +49,19 @@ export function defaultHome(): string {
 }
 
 export const AIMAN_HOME = defaultHome();
+
+/** Root of the installed app (contains package.json, server/, dist/, …). */
+export const APP_ROOT = resolve(import.meta.dir, "..", "..");
+
+export const VERSION = (() => {
+  try {
+    return JSON.parse(readFileSync(join(APP_ROOT, "package.json"), "utf8")).version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
+
+export const UPDATE_REPO = process.env.AIMAN_REPO ?? "spacewalkingninja/aiman";
 
 export const DIST =
   ensureEnv("DIST") ?? resolve(import.meta.dir, "..", "..", "dist");
