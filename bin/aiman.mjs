@@ -87,6 +87,22 @@ function run(cmd, cmdArgs, opts = {}) {
   });
 }
 
+const winQuote = (s) => `"${String(s).replace(/"/g, '\\"')}"`;
+
+/**
+ * Spawn an external program. On Windows, npm-installed CLIs are `.cmd` shims
+ * that Node/Bun cannot spawn directly (EINVAL), so run them through the shell
+ * with proper quoting instead.
+ */
+function spawnExternal(cmd, cmdArgs, opts = {}) {
+  const isShim = process.platform === "win32" && /\.(cmd|bat)$/i.test(cmd);
+  if (isShim) {
+    const line = [winQuote(cmd), ...cmdArgs.map(winQuote)].join(" ");
+    return spawn(line, { shell: true, ...opts });
+  }
+  return spawn(cmd, cmdArgs, opts);
+}
+
 async function buildWeb(bun) {
   if (!existsSync(WEB_DIR)) return;
   console.log(">> installing web dependencies…");
@@ -146,14 +162,21 @@ if (startOpencode) {
       );
     } else {
       console.log(`>> starting opencode serve on port ${opencodePort}…`);
-      opencodeChild = spawn(oc, ["serve", "--port", opencodePort, "--hostname", "127.0.0.1"], {
-        stdio: "inherit",
-        cwd: process.cwd(),
-      });
-      children.push(opencodeChild);
-      for (let i = 0; i < 30; i++) {
-        if (await isUp(opencodeUrl)) break;
-        await new Promise((r) => setTimeout(r, 400));
+      try {
+        opencodeChild = spawnExternal(
+          oc,
+          ["serve", "--port", opencodePort, "--hostname", "127.0.0.1"],
+          { stdio: "inherit", cwd: process.cwd() },
+        );
+        children.push(opencodeChild);
+        for (let i = 0; i < 30; i++) {
+          if (await isUp(opencodeUrl)) break;
+          await new Promise((r) => setTimeout(r, 400));
+        }
+      } catch (e) {
+        console.warn(
+          `>> could not start opencode (${e.message}). Start \`opencode serve\` yourself; aiman will keep running.`,
+        );
       }
     }
   }

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-09
+
+### Fixed
+- **Windows: `spawn … opencode.cmd EINVAL`.** The launcher now spawns npm
+  `.cmd`/`.bat` shims through the shell (with quoting), and no longer crashes if
+  `opencode` fails to start — aiman keeps running and prints a hint.
+
 ## [1.5.0] - 2026-10-09
 
 ### Added
