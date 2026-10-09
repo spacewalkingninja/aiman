@@ -370,32 +370,40 @@ export function getTheme(id: string): Theme {
   return THEMES.find((t) => t.id === id) ?? THEMES[0]!;
 }
 
-const ALL_KEYS = Object.keys(THEMES[0]!.vars);
+// Union of every theme's variables, so switching between themes always clears
+// all of them (not just the first theme's key set).
+const ALL_KEYS = [...new Set(THEMES.flatMap((t) => Object.keys(t.vars)))];
 const LIB_LINK_ID = "aiman-theme-lib";
+
+/** Remove any theme library stylesheets (98.css / XP.css) from the document. */
+function removeThemeLibs(): void {
+  document
+    .querySelectorAll('link[data-aiman-theme-lib], link[id^="aiman-theme-lib"]')
+    .forEach((el) => el.remove());
+}
 
 /** Apply a theme by writing its variables onto <html> and tagging data-theme. */
 export function applyTheme(id: string): void {
   const theme = getTheme(id);
   const root = document.documentElement;
-  // Clear any previously-set variables first (switching between themes with
-  // different key sets), then apply this theme's full set.
+
+  // Always detach a previously loaded theme stylesheet first so its global
+  // element styles (buttons, inputs, fonts) can't leak into other themes.
+  removeThemeLibs();
+
+  // Clear previously-set variables, then apply this theme's full set.
   for (const k of ALL_KEYS) root.style.removeProperty(k);
   for (const [k, v] of Object.entries(theme.vars)) root.style.setProperty(k, v);
   root.dataset.theme = theme.id;
 
-  // Lazily attach/detach an optional theme stylesheet (e.g. 98.css / XP.css).
-  const existing = document.getElementById(LIB_LINK_ID) as HTMLLinkElement | null;
+  // Lazily attach the optional stylesheet for themes that need one.
   if (theme.css) {
-    if (!existing || existing.getAttribute("href") !== theme.css) {
-      existing?.remove();
-      const link = document.createElement("link");
-      link.id = LIB_LINK_ID;
-      link.rel = "stylesheet";
-      link.href = theme.css;
-      document.head.appendChild(link);
-    }
-  } else if (existing) {
-    existing.remove();
+    const link = document.createElement("link");
+    link.id = LIB_LINK_ID;
+    link.rel = "stylesheet";
+    link.href = theme.css;
+    link.dataset.aimanThemeLib = "1";
+    document.head.appendChild(link);
   }
 }
 

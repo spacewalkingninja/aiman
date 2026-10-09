@@ -2,6 +2,7 @@ import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from "reac
 import Composer from "./Composer";
 import PartView from "./PartView";
 import ErrorBoundary from "./ErrorBoundary";
+import FileBrowser from "./FileBrowser";
 
 const TerminalPane = lazy(() => import("./TerminalPane"));
 import { api, type MessageEntry, type QuestionRequest, type SessionStats } from "./api";
@@ -38,6 +39,7 @@ export default function ChatView() {
   const [diff, setDiff] = useState<{ files: string[] } | null>(null);
   const [stats, setStats] = useState<SessionStats | null>(null);
   const [showStats, setShowStats] = useState(false);
+  const [showFiles, setShowFiles] = useState(false);
 
   // ---- windowed rendering for very long histories ----
   const INITIAL = 30;
@@ -111,6 +113,9 @@ export default function ChatView() {
           >
             ⇗
           </button>
+          <button className="btn ghost sm" onClick={() => setShowFiles(true)} title="Files">
+            files
+          </button>
           <button className="btn ghost sm" onClick={() => setShowStats(true)} title="Session statistics">
             stats
           </button>
@@ -134,6 +139,12 @@ export default function ChatView() {
         )}
         {showStats && (
           <SessionStatsCard stats={stats} onClose={() => setShowStats(false)} />
+        )}
+        {showFiles && (
+          <FileBrowser
+            directory={session?.directory ?? ""}
+            onClose={() => setShowFiles(false)}
+          />
         )}
         <ErrorBoundary label="Terminal error">
           <Suspense fallback={<div className="empty">loading terminal…</div>}>
@@ -216,6 +227,9 @@ export default function ChatView() {
         >
           ⇗
         </button>
+        <button className="btn ghost sm" onClick={() => setShowFiles(true)} title="Files">
+          files
+        </button>
         <button className="btn ghost sm" onClick={() => setShowStats(true)} title="Session statistics">
           stats
         </button>
@@ -234,6 +248,9 @@ export default function ChatView() {
       </div>
 
       {showStats && <SessionStatsCard stats={stats} onClose={() => setShowStats(false)} />}
+      {showFiles && (
+        <FileBrowser directory={session?.directory ?? ""} onClose={() => setShowFiles(false)} />
+      )}
 
       {(todos.length > 0 || diff || perms.length > 0 || (stats && stats.models.length > 0)) && (
         <div style={{ padding: "8px 20px", borderBottom: "1px solid var(--border)", background: "var(--bg-2)" }}>

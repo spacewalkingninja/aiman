@@ -333,6 +333,18 @@ select.input, input.input {
 .mode-card input { margin-top: 3px; }
 .mode-title { font-weight: 600; margin-bottom: 4px; }
 
+/* ---- file browser ---- */
+.file-browser { width: min(1120px, 94vw); height: min(80vh, 760px); display: flex; flex-direction: column; }
+.fb-head { display: flex; align-items: center; gap: 8px; }
+.fb-split { display: flex; flex: 1; min-height: 0; border-top: 1px solid var(--border); margin-top: 8px; }
+.fb-list { width: 42%; min-width: 240px; overflow: auto; border-right: 1px solid var(--border); padding: 6px; }
+.fb-item { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; cursor: pointer; font-family: var(--mono); font-size: 12px; }
+.fb-item:hover { background: var(--bg-3); }
+.fb-item.active { background: var(--bg-3); outline: 1px solid var(--accent); }
+.fb-path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+.fb-editor { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.fb-edit-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--border); background: var(--bg-2); }
+
 /* ---- theme picker ---- */
 .theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 12px 0 4px; }
 .theme-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-2); padding: 10px; cursor: pointer; text-align: left; color: var(--text); }

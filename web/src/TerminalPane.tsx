@@ -55,8 +55,62 @@ export default function TerminalPane({
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const theme = useStore().theme;
   const [status, setStatus] = useState("connecting…");
+
+  // Upload dropped/pasted files (images, PDF, anything readable) and type the
+  // resulting path(s) into the terminal so opencode can read them.
+  async function uploadFiles(files: File[]) {
+    if (!files.length) return;
+    setStatus(`uploading ${files.length} file${files.length > 1 ? "s" : ""}…`);
+    const paths: string[] = [];
+    for (const file of files) {
+      try {
+        const r = await api.upload(directory, file, file.name || "paste");
+        paths.push(r.path);
+      } catch (err) {
+        setStatus(`upload failed: ${err}`);
+        return;
+      }
+    }
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(paths.join(" ") + " ");
+    setStatus("");
+  }
+
+  function handlePaste(e: React.ClipboardEvent) {
+    const dt = e.clipboardData;
+    if (!dt) return;
+    const files: File[] = [];
+    if (dt.files?.length) files.push(...Array.from(dt.files));
+    if (!files.length && dt.items) {
+      for (let i = 0; i < dt.items.length; i++) {
+        const it = dt.items[i]!;
+        if (it.kind === "file") {
+          const f = it.getAsFile();
+          if (f) files.push(f);
+        }
+      }
+    }
+    if (files.length) {
+      e.preventDefault();
+      uploadFiles(files);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (files.length) uploadFiles(files);
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+  }
 
   // Keep the terminal's colours in sync with the active app theme.
   useEffect(() => {
@@ -161,6 +215,7 @@ export default function TerminalPane({
 
       const proto = location.protocol === "https:" ? "wss" : "ws";
       ws = new WebSocket(`${proto}://${location.host}/ptyws/${pty.id}`);
+      wsRef.current = ws;
       ws.binaryType = "arraybuffer";
       ws.onopen = () => {
         if (!disposed) setStatus("");
@@ -192,6 +247,7 @@ export default function TerminalPane({
     return () => {
       disposed = true;
       ro.disconnect();
+      wsRef.current = null;
       try {
         ws?.close();
       } catch {}
@@ -203,7 +259,12 @@ export default function TerminalPane({
   }, [sessionId, directory]);
 
   return (
-    <div className="terminal-pane">
+    <div
+      className="terminal-pane"
+      onPaste={handlePaste}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+    >
       {status && <div className="terminal-status">{status}</div>}
       <div ref={hostRef} className="terminal-host" />
     </div>

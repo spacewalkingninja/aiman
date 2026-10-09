@@ -94,6 +94,52 @@
         };
       }
       window.addEventListener("resize", debounce(fitToscreen, 100));
+
+      // Paste or drag&drop files (images, PDF, anything readable) straight into
+      // the session: upload them and type their paths into the terminal.
+      function uploadFiles(fileList) {
+        var files = Array.prototype.slice.call(fileList || []);
+        if (!files.length) return false;
+        status.textContent = "uploading " + files.length + " file(s)…";
+        var paths = [];
+        var done = 0;
+        files.forEach(function (file) {
+          fetch("/api/upload?name=" + encodeURIComponent(file.name || "paste"), {
+            method: "POST",
+            headers: { "content-type": file.type || "application/octet-stream" },
+            body: file,
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { if (d && d.path) paths.push(d.path); })
+            .catch(function () {})
+            .then(function () {
+              done++;
+              if (done === files.length) {
+                if (paths.length) socket.emit("pty-input", { input: paths.join(" ") + " " });
+                status.textContent = "connected";
+              }
+            });
+        });
+        return true;
+      }
+      document.addEventListener("paste", function (e) {
+        var dt = e.clipboardData || window.clipboardData;
+        var files = (dt && dt.files) || [];
+        if (files.length) { e.preventDefault(); uploadFiles(files); return; }
+        var items = (dt && dt.items) || [];
+        var arr = [];
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].kind === "file") { var f = items[i].getAsFile(); if (f) arr.push(f); }
+        }
+        if (arr.length) { e.preventDefault(); uploadFiles(arr); }
+      });
+      document.addEventListener("dragover", function (e) { e.preventDefault(); });
+      document.addEventListener("drop", function (e) {
+        e.preventDefault();
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+          uploadFiles(e.dataTransfer.files);
+        }
+      });
     </script>
   </body>
 </html>

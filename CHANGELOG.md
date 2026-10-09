@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-09
+
+### Added
+- **Paste or drag & drop files into a session terminal** (native terminal and
+  the vendored pyxtermjs): images, PDFs and any readable file are uploaded and
+  their path is typed into the terminal so opencode can read them. Works in the
+  in-app session tab and in pop-out windows.
+- **Quick file editor tab in the session header** (`files`): lists the session
+  folder's files with filter, open/edit/save, upload and delete.
+- Server endpoints: `POST /api/upload`, `DELETE /api/file`.
+
+### Fixed
+- **Couldn't switch back to a plain theme (e.g. Aiman Dark) after Windows
+  XP/98.** Now every theme variable is cleared on switch and any injected
+  xp.css/98.css stylesheet is always detached, so its global element styles
+  can't leak into other themes.
+
 ## [1.6.0] - 2026-10-09
 
 ### Added

@@ -76,6 +76,7 @@ import {
   APP_ROOT,
   VERSION,
   UPDATE_REPO,
+  AIMAN_HOME,
 } from "./config";
 import {
   copyFileSync,
@@ -905,6 +906,46 @@ async function handle(req: Request): Promise<Response> {
     headers.set("content-type", MIME[extname(abs).toLowerCase()] ?? "application/octet-stream");
     headers.set("cache-control", "private, max-age=60");
     return new Response(f, { headers });
+  }
+
+  if (p === "/api/file" && method === "DELETE") {
+    const directory = url.searchParams.get("directory");
+    const relPath = url.searchParams.get("path");
+    if (!directory || !relPath) return json({ error: "directory and path required" }, 400);
+    const abs = safeResolve(directory, relPath);
+    if (!abs) return json({ error: "forbidden" }, 403);
+    if (abs === resolve(directory)) return json({ error: "refusing to delete root" }, 400);
+    try {
+      rmSync(abs, { recursive: true, force: true });
+    } catch (e) {
+      return json({ error: String(e) }, 500);
+    }
+    return json({ ok: true });
+  }
+
+  // Upload a file (e.g. a pasted image) into a directory, or AIMAN_HOME/uploads.
+  if (p === "/api/upload" && method === "POST") {
+    const directory = url.searchParams.get("directory");
+    const base = directory ? safeResolve(directory, ".") : null;
+    const target = base && existsSync(base) ? join(base, ".aiman-uploads") : join(AIMAN_HOME, "uploads");
+    try {
+      mkdirSync(target, { recursive: true });
+    } catch {}
+    const ct = req.headers.get("content-type") || "application/octet-stream";
+    const provided = url.searchParams.get("name") || "";
+    const extFromMime = Object.entries(MIME).find(([, v]) => v === ct)?.[0] ?? "";
+    const ext = extname(provided).toLowerCase() || extFromMime || ".bin";
+    const stem = (provided.replace(/\.[^.]+$/, "").replace(/[^\w.-]/g, "").slice(0, 40)) || "paste";
+    const name = `${stem}-${Date.now()}${ext}`;
+    const abs = join(target, name);
+    const buf = await req.arrayBuffer();
+    if (!buf.byteLength) return json({ error: "empty body" }, 400);
+    try {
+      await Bun.write(abs, buf);
+    } catch (e) {
+      return json({ error: String(e) }, 500);
+    }
+    return json({ ok: true, path: abs, name, size: buf.byteLength });
   }
 
   let cm = p.match(/^\/api\/sessions\/([^/]+)\/claim$/);

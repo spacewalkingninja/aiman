@@ -431,6 +431,20 @@ export const api = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ directory, path, content }),
     }).then(j),
+  deleteFile: (directory: string, path: string) =>
+    fetch("/api/file?" + new URLSearchParams({ directory, path }).toString(), {
+      method: "DELETE",
+    }).then(j<{ ok: boolean }>),
+  upload: (directory: string | undefined, blob: Blob, name?: string) => {
+    const q = new URLSearchParams();
+    if (directory) q.set("directory", directory);
+    if (name) q.set("name", name);
+    return fetch("/api/upload?" + q.toString(), {
+      method: "POST",
+      headers: { "content-type": blob.type || "application/octet-stream" },
+      body: blob,
+    }).then(j<{ ok: boolean; path: string; name: string; size: number }>);
+  },
   rawUrl: (directory: string, path: string) =>
     "/api/raw?" + new URLSearchParams({ directory, path }).toString(),
 
