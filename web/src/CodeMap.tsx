@@ -248,12 +248,11 @@ export default function CodeMap({ directories }: { directories: string[] }) {
     drag.current = { x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
   }
   function onPointerMove(e: React.PointerEvent) {
-    if (!drag.current) return;
-    setView((v) => ({
-      ...v,
-      tx: drag.current!.tx + (e.clientX - drag.current!.x),
-      ty: drag.current!.ty + (e.clientY - drag.current!.y),
-    }));
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    setView((v) => ({ ...v, tx: d.tx + dx, ty: d.ty + dy }));
   }
   function endDrag() {
     drag.current = null;

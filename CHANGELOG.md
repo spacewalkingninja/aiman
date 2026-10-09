@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-10-09
+
+### Fixed
+- **Treemap crash / black page** (`Cannot read properties of null (reading 'tx')`).
+  The pan handler read `drag.current` inside the `setView` updater, which React
+  runs after the pointer has already been released. The drag values are now
+  captured locally.
+- Added a React **error boundary** around the codebase visualizer and the
+  terminal so a component fault shows an inline message instead of a blank page.
+
 ## [1.3.1] - 2026-10-09
 
 ### Fixed

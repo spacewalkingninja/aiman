@@ -1,6 +1,7 @@
 import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Composer from "./Composer";
 import PartView from "./PartView";
+import ErrorBoundary from "./ErrorBoundary";
 
 const TerminalPane = lazy(() => import("./TerminalPane"));
 import { api, type MessageEntry, type QuestionRequest, type SessionStats } from "./api";
@@ -129,9 +130,11 @@ export default function ChatView() {
         {showStats && (
           <SessionStatsCard stats={stats} onClose={() => setShowStats(false)} />
         )}
-        <Suspense fallback={<div className="empty">loading terminal…</div>}>
-          <TerminalPane sessionId={id} directory={session?.directory} />
-        </Suspense>
+        <ErrorBoundary label="Terminal error">
+          <Suspense fallback={<div className="empty">loading terminal…</div>}>
+            <TerminalPane sessionId={id} directory={session?.directory} />
+          </Suspense>
+        </ErrorBoundary>
       </div>
     );
   }

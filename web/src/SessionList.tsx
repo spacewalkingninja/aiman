@@ -9,6 +9,7 @@ import {
 } from "./store";
 import { fmtCost, fmtTokens } from "./StatsView";
 import CodeMap from "./CodeMap";
+import ErrorBoundary from "./ErrorBoundary";
 
 function timeAgo(ms: number) {
   const d = Date.now() - ms;
@@ -136,7 +137,9 @@ export default function SessionList() {
       <div className="split-left">{pane}</div>
       <div className="split-right">
         {scopedDirs.length ? (
-          <CodeMap directories={scopedDirs} />
+          <ErrorBoundary label="Codebase visualizer error">
+            <CodeMap directories={scopedDirs} />
+          </ErrorBoundary>
         ) : (
           <div className="empty">No directory to visualise.</div>
         )}

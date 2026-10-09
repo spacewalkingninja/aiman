@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import ErrorBoundary from "./ErrorBoundary";
 
 const TerminalPane = lazy(() => import("./TerminalPane"));
 
@@ -8,8 +9,10 @@ const TerminalPane = lazy(() => import("./TerminalPane"));
  */
 export default function TerminalView() {
   return (
-    <Suspense fallback={<div className="empty">loading terminal…</div>}>
-      <TerminalPane />
-    </Suspense>
+    <ErrorBoundary label="Terminal error">
+      <Suspense fallback={<div className="empty">loading terminal…</div>}>
+        <TerminalPane />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
