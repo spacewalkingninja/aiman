@@ -28,18 +28,20 @@ export default function App() {
 
   // Keep the browser URL in sync with the active view / session (handles).
   useEffect(() => {
-    const onPop = () => applyLocation().catch(() => {});
+    const onPop = () => {
+      if (store.get().routeReady) applyLocation().catch(() => {});
+    };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
   useEffect(() => {
-    if (typeof location === "undefined") return;
+    if (typeof location === "undefined" || !s.routeReady) return;
     const desired = pathFor(s.view, s.activeSessionId);
     if (location.pathname + location.search !== desired) {
       history.pushState(null, "", desired);
     }
-  }, [s.view, s.activeSessionId]);
+  }, [s.view, s.activeSessionId, s.routeReady]);
 
   if (s.auth.loading) {
     return (

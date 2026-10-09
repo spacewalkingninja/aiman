@@ -35,6 +35,7 @@ export type MenuKind = "leader" | "models" | "agents" | "help" | null;
 type State = {
   auth: Auth;
   ready: boolean;
+  routeReady: boolean;
   connected: boolean;
   sessions: Session[];
   folders: Folder[];
@@ -60,6 +61,7 @@ type State = {
 let state: State = {
   auth: { loading: true, authenticated: false, needsSetup: false, user: null },
   ready: false,
+  routeReady: false,
   connected: false,
   sessions: [],
   folders: [],
@@ -272,12 +274,14 @@ export async function logout() {
     directories: [],
     activeSessionId: null,
     entries: {},
+    routeReady: false,
   });
 }
 
 export async function bootstrap() {
   await Promise.all([refreshSessions(), refreshMeta(), loadModelsAgents(), loadProfiles()]);
   await applyLocation();
+  set({ routeReady: true });
   connectEvents();
 }
 
