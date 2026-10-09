@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-09
+
+### Fixed
+- **Terminal didn't open behind Apache** (showed *"session ended — reopen to
+  reconnect"*). The `/ptyws/` WebSocket bridge needs an explicit `ws://`
+  ProxyPass; a plain `ProxyPass /` uses `mod_proxy_http` and does not tunnel
+  WebSocket upgrades. Added [`deploy/apache-aiman.conf`](deploy/apache-aiman.conf)
+  and a README note. Standalone `aiman` was never affected.
+
+### Changed
+- **Treemap now renders recursively.** Directories contain their children, so
+  files nested inside folders are shown (depth-first, deep nesting included), and
+  file rectangles render their actual code (or image) once they are large enough
+  on screen.
+- **Pan / zoom in the treemap.** Mouse wheel zooms toward the cursor, the
+  **middle mouse button** drags to pan, clicking a folder zooms to fit it,
+  *fit* resets the view, and double-clicking a file opens the editor.
+
 ## [1.3.0] - 2026-10-09
 
 ### Added

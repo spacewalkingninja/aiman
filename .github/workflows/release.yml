@@ -27,7 +27,7 @@ jobs:
           NAME="${GITHUB_REF_NAME#v}"
           STAGE="aiman-$NAME"
           mkdir -p "$STAGE"
-          cp -r bin server dist scripts package.json README.md LICENSE CHANGELOG.md "$STAGE"/
+          cp -r bin server dist scripts deploy package.json README.md LICENSE CHANGELOG.md "$STAGE"/
           tar -czf "aiman-$NAME.tar.gz" "$STAGE"
           (cd "$STAGE" && zip -qr "../aiman-$NAME.zip" .)
           sha256sum "aiman-$NAME.tar.gz" "aiman-$NAME.zip" > SHA256SUMS.txt

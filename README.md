@@ -126,6 +126,12 @@ Open a session and it launches the opencode TUI attached to it inside the
 browser (**terminal chat**, the default). Switch to the structured React chat
 under **Settings** (`/settings`). The choice is remembered per browser.
 
+When running behind a reverse proxy, make sure WebSocket upgrades reach the
+manager: the terminal bridge lives at `/ptyws/` and needs a `ws://` ProxyPass
+(plain `ProxyPass /` does not tunnel WebSockets). See
+[`deploy/apache-aiman.conf`](deploy/apache-aiman.conf). The standalone `aiman`
+launcher needs no proxy at all.
+
 The embedded terminal uses opencode's native PTY API:
 
 - `POST /oc/pty` creates a PTY (the manager proxies it to opencode),
