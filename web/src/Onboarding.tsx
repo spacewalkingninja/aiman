@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "./api";
-import { completeOnboarding, setChatMode, toast, useStore } from "./store";
+import { completeOnboarding, setChatMode, setTheme, toast, useStore } from "./store";
+import { THEMES } from "./themes";
 
 export default function Onboarding() {
   const s = useStore();
@@ -126,6 +127,27 @@ export default function Onboarding() {
                   <div className="small muted">Structured messages and composer.</div>
                 </div>
               </label>
+            </div>
+            <p className="muted small" style={{ marginTop: 16 }}>
+              Theme
+            </p>
+            <div className="theme-grid" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
+              {THEMES.map((t) => (
+                <button
+                  key={t.id}
+                  className={"theme-card" + (s.theme === t.id ? " active" : "")}
+                  onClick={() => setTheme(t.id)}
+                >
+                  <div className="theme-preview" style={{ background: t.vars["--bg"] }}>
+                    <div className="tp-side" style={{ background: t.vars["--bg-2"] }} />
+                    <div className="tp-main">
+                      <div className="tp-bar" style={{ background: t.vars["--accent"] }} />
+                      <div className="tp-body" style={{ background: t.vars["--bg"] }} />
+                    </div>
+                  </div>
+                  <div className="theme-name">{t.name}</div>
+                </button>
+              ))}
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
               <button className="btn ghost" onClick={() => setStep(1)}>

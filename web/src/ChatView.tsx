@@ -11,6 +11,7 @@ import {
   archiveSession,
   createSession,
   openSession,
+  openSessionWindow,
   refreshSessions,
   rejectQuestionSafe,
   renameSession,
@@ -103,6 +104,13 @@ export default function ChatView() {
           <div className="chat-title">{session?.title || "(untitled)"}</div>
           <span className="badge">{session?.directory}</span>
           <div className="spacer" />
+          <button
+            className="btn ghost sm"
+            onClick={() => openSessionWindow(id)}
+            title="Open in new window"
+          >
+            ⇗
+          </button>
           <button className="btn ghost sm" onClick={() => setShowStats(true)} title="Session statistics">
             stats
           </button>
@@ -179,6 +187,13 @@ export default function ChatView() {
           <span className="badge running">{status.type === "retry" ? `retry ${status.attempt}` : "working"}</span>
         )}
         <div className="spacer" />
+        <button
+          className="btn ghost sm"
+          onClick={() => openSessionWindow(id)}
+          title="Open in new window"
+        >
+          ⇗
+        </button>
         <button className="btn ghost sm" onClick={() => setShowStats(true)} title="Session statistics">
           stats
         </button>

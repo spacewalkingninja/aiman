@@ -3,6 +3,16 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { api } from "./api";
+import { cssVar } from "./themes";
+import { useStore } from "./store";
+
+function termTheme() {
+  return {
+    background: cssVar("--term-bg") || "#0d1117",
+    foreground: cssVar("--term-fg") || "#c9d1d9",
+    cursor: cssVar("--term-cursor") || "#c9d1d9",
+  };
+}
 
 const posixQuote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 const winQuote = (s: string) => `"${s.replace(/"/g, '""')}"`;
@@ -23,7 +33,14 @@ export default function TerminalPane({
   directory?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const termRef = useRef<Terminal | null>(null);
+  const theme = useStore().theme;
   const [status, setStatus] = useState("connecting…");
+
+  // Keep the terminal's colours in sync with the active app theme.
+  useEffect(() => {
+    if (termRef.current) termRef.current.options.theme = termTheme();
+  }, [theme]);
 
   useEffect(() => {
     let disposed = false;
@@ -36,8 +53,9 @@ export default function TerminalPane({
       fontSize: 13,
       cursorBlink: true,
       scrollback: 10000,
-      theme: { background: "#0d1117", foreground: "#c9d1d9" },
+      theme: termTheme(),
     });
+    termRef.current = term;
     const fit = new FitAddon();
     term.loadAddon(fit);
     if (hostRef.current) term.open(hostRef.current);

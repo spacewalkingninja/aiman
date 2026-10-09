@@ -11,6 +11,7 @@ import {
   type Status,
   type Todo,
 } from "./api";
+import { applyTheme, DEFAULT_THEME } from "./themes";
 
 export type View =
   | "chat"
@@ -66,6 +67,7 @@ type State = {
   profiles: Profile[];
   activeProfile: string | null;
   chatMode: ChatMode;
+  theme: string;
   onboarded: boolean | null;
 };
 
@@ -95,8 +97,12 @@ let state: State = {
   activeProfile: null,
   chatMode: ((typeof localStorage !== "undefined" && localStorage.getItem("oc_chat_mode")) ||
     "terminal") as ChatMode,
+  theme:
+    (typeof localStorage !== "undefined" && localStorage.getItem("oc_theme")) || DEFAULT_THEME,
   onboarded: null,
 };
+
+applyTheme(state.theme);
 
 const listeners = new Set<() => void>();
 function set(patch: Partial<State>) {
@@ -127,6 +133,20 @@ export function setModel(key: string) {
 export function setAgent(name: string) {
   localStorage.setItem("oc_agent", name);
   set({ agent: name });
+}
+
+export function setTheme(id: string) {
+  applyTheme(id);
+  try {
+    localStorage.setItem("oc_theme", id);
+  } catch {}
+  set({ theme: id });
+}
+
+/** Open a session in its own pop-out browser window. */
+export function openSessionWindow(sessionId: string) {
+  const url = `/sessions/${sessionId}?popout=1`;
+  window.open(url, `aiman_${sessionId}`, "width=1100,height=820,menubar=no,toolbar=no");
 }
 
 export function setChatMode(mode: ChatMode) {

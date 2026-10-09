@@ -37,13 +37,16 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  const popout =
+    typeof location !== "undefined" && new URLSearchParams(location.search).has("popout");
+
   useEffect(() => {
-    if (typeof location === "undefined" || !s.routeReady) return;
+    if (popout || typeof location === "undefined" || !s.routeReady) return;
     const desired = pathFor(s.view, s.activeSessionId);
     if (location.pathname + location.search !== desired) {
       history.pushState(null, "", desired);
     }
-  }, [s.view, s.activeSessionId, s.routeReady]);
+  }, [s.view, s.activeSessionId, s.routeReady, popout]);
 
   if (s.auth.loading) {
     return (
@@ -58,6 +61,29 @@ export default function App() {
 
   const isAdmin = !!s.auth.user?.is_admin;
   const setView = (view: any) => store.set({ view });
+
+  const mainContent = (
+    <div className="main">
+      {s.view === "chat" && (s.activeSessionId ? <ChatView /> : <SessionList />)}
+      {s.view === "search" && <SearchView />}
+      {s.view === "stats" && <StatsView />}
+      {s.view === "terminal" && <TerminalView />}
+      {s.view === "users" && isAdmin && <Users />}
+      {s.view === "profiles" && <Profiles />}
+      {s.view === "settings" && <SettingsView />}
+    </div>
+  );
+
+  // Pop-out window: just the session, no chrome.
+  if (popout) {
+    return (
+      <div className="app" style={{ gridTemplateRows: "1fr" }}>
+        <div className="main">{s.activeSessionId ? <ChatView /> : <SessionList />}</div>
+        {s.toast && <div className="toast">{s.toast}</div>}
+        <Overlays />
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -128,15 +154,7 @@ export default function App() {
 
       <div className="layout">
         <Sidebar />
-        <div className="main">
-          {s.view === "chat" && (s.activeSessionId ? <ChatView /> : <SessionList />)}
-          {s.view === "search" && <SearchView />}
-          {s.view === "stats" && <StatsView />}
-          {s.view === "terminal" && <TerminalView />}
-          {s.view === "users" && isAdmin && <Users />}
-          {s.view === "profiles" && <Profiles />}
-          {s.view === "settings" && <SettingsView />}
-        </div>
+        {mainContent}
       </div>
 
       {s.toast && <div className="toast">{s.toast}</div>}

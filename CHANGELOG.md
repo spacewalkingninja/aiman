@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-09
+
+### Added
+- **Themes.** A theme picker in Settings (and the onboarding wizard) with eight
+  skins that restyle the entire app — chrome, sessions, chat, terminal (xterm
+  colours follow the theme), code map, overlays and scrollbars:
+  *Aiman Dark* (default), *Aiman Light*, **Windows XP** and **Windows 98**
+  (using the real [xp.css](https://botoxparty.github.io/XP.css/) /
+  [98.css](https://jdan.github.io/98.css/) skins, loaded lazily only while
+  active), *Skeuomorphic* (Winamp-style brushed metal with green LED glow),
+  *macOS Aqua*, *Nord* and *Phosphor CRT*. The choice is remembered per browser.
+- **Pop-out session windows.** Every session row and the session header have an
+  "open in new window" (⇗) action that opens `/sessions/<id>?popout=1` in a
+  chrome-less browser window, so you can move sessions into their own windows
+  and arrange them side by side.
+
 ## [1.3.5] - 2026-10-09
 
 ### Fixed

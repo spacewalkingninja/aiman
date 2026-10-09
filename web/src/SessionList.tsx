@@ -3,6 +3,7 @@ import {
   filterSessions,
   moveToFolder,
   openSession,
+  openSessionWindow,
   store,
   togglePin,
   useStore,
@@ -110,6 +111,13 @@ export default function SessionList() {
                     </option>
                   ))}
                 </select>
+                <button
+                  className="btn ghost sm"
+                  title="Open in new window"
+                  onClick={() => openSessionWindow(sess.id)}
+                >
+                  ⇗
+                </button>
                 <button className="btn ghost sm" title="Pin" onClick={() => togglePin(sess)}>
                   {sess.pinned ? "★" : "☆"}
                 </button>

@@ -34,6 +34,9 @@ opencode is working.
 - **Profiles** — bundle provider API keys and switch them at runtime.
 - **Deep links** — every view has a URL (`/sessions`, `/search`, `/stats`, …) and
   each session has its own handle (`/sessions/<id>`).
+- **Themes** — eight app-wide skins including Windows XP and Windows 98
+  (via xp.css / 98.css), a skeuomorphic Winamp-style theme, Nord and a CRT.
+- **Pop-out windows** — open any session in its own chrome-less browser window.
 - **Cross-platform** — runs on Linux, macOS and Windows via [Bun](https://bun.sh).
 
 ## Requirements
