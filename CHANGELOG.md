@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Copy on select** in the terminal (native xterm pane and the vendored
+  pyxtermjs page): selecting text copies it to the clipboard, with a fallback
+  for non-secure contexts.
+
 ## [1.5.1] - 2026-10-09
 
 ### Fixed

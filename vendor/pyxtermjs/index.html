@@ -36,6 +36,31 @@
       term.open(document.getElementById("terminal"));
       fit.fit();
 
+      // Copy on select: selecting text in the terminal copies it to the
+      // clipboard (with a fallback for non-secure contexts / older browsers).
+      function fallbackCopy(text) {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+      function copySelection() {
+        var sel = term.getSelection();
+        if (!sel || !sel.trim()) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(sel).catch(function () { fallbackCopy(sel); });
+        } else {
+          fallbackCopy(sel);
+        }
+      }
+      var termEl = document.getElementById("terminal");
+      termEl.addEventListener("mouseup", function () { setTimeout(copySelection, 0); });
+      termEl.addEventListener("touchend", function () { setTimeout(copySelection, 0); });
+
       const status = document.getElementById("status");
       const params = new URLSearchParams(location.search);
       const query = {};

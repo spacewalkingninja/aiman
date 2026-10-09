@@ -14,6 +14,27 @@ function termTheme() {
   };
 }
 
+/** Copy text to the clipboard, with a fallback for non-secure contexts. */
+export async function copyToClipboard(text: string): Promise<void> {
+  if (!text) return;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+  } catch {}
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  } catch {}
+}
+
 const posixQuote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 const winQuote = (s: string) => `"${s.replace(/"/g, '""')}"`;
 
@@ -62,6 +83,12 @@ export default function TerminalPane({
     try {
       fit.fit();
     } catch {}
+
+    // Copy on select.
+    term.onSelectionChange(() => {
+      const sel = term.getSelection();
+      if (sel && sel.trim()) copyToClipboard(sel);
+    });
 
     const doResize = () => {
       try {
