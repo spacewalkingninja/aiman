@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-10-09
+
+### Changed
+- **Treemap cells now render in screen space.** Text and borders keep a constant
+  pixel size at any zoom, so zooming into a file reveals more of its source at a
+  readable size (instead of magnifying a few lines and fattening the borders).
+- **Effectively infinite zoom** (up to 8000×) so you can fill the view with a
+  single file and read a full page without opening the editor. Labels and icons
+  stay small while the file content expands to fill the cell.
+- Off-screen cells are culled while panning/zooming to keep it smooth.
+
 ## [1.3.3] - 2026-10-09
 
 ### Fixed

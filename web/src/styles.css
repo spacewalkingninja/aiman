@@ -268,7 +268,7 @@ select.input, input.input {
 .cm-crumbs a { cursor: pointer; color: var(--accent); }
 .cm-path { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-map { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #0a0c0f; cursor: default; touch-action: none; user-select: none; }
-.cm-canvas { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+.cm-stage { position: absolute; inset: 0; }
 .cm-cell { position: absolute; border: 1px solid var(--border); overflow: hidden; cursor: pointer; box-sizing: border-box; }
 .cm-cell.dir { background: rgba(38, 50, 70, 0.5); border-color: #33415a; }
 .cm-cell.dir:hover { background: rgba(52, 68, 95, 0.6); }
@@ -278,12 +278,12 @@ select.input, input.input {
 .cm-cell.dir > .cm-label { background: rgba(0, 0, 0, 0.42); font-weight: 600; }
 .cm-name { overflow: hidden; text-overflow: ellipsis; }
 .cm-size { margin-left: auto; color: var(--muted); padding-left: 6px; }
-.cm-code { margin: 0; padding: 1px 4px; font-family: var(--mono); font-size: 9px; line-height: 1.22; color: #8b97a8; white-space: pre; overflow: hidden; }
+.cm-code { margin: 0; padding: 1px 5px; font-family: var(--mono); font-size: 11px; line-height: 1.3; color: #9aa6b6; white-space: pre; overflow: hidden; tab-size: 4; }
 .cm-img { width: 100%; height: 100%; object-fit: contain; background: #000; }
 .cm-editor { flex: 1; min-height: 0; width: 100%; resize: none; border: none; outline: none; background: #0d1117; color: #c9d1d9; font-family: var(--mono); font-size: 13px; padding: 10px; }
 .cm-hint { position: absolute; right: 8px; bottom: 8px; z-index: 1000; font-size: 11px; color: var(--muted); background: rgba(0, 0, 0, 0.5); padding: 3px 8px; border-radius: 6px; pointer-events: none; }
 .cm-map { perspective: 1600px; }
-.cm-canvas.cm-3d { transform-style: preserve-3d; }
+.cm-stage.cm-3d { transform: rotateX(16deg); transform-style: preserve-3d; }
 .cm-3d .cm-cell { box-shadow: 0 6px 0 rgba(0, 0, 0, 0.5); }
 .cm-3d .cm-cell.dir { transform: translateZ(30px); }
 .cm-3d .cm-cell.file { transform: translateZ(6px); }

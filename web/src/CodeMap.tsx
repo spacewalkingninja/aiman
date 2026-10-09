@@ -124,7 +124,10 @@ function humanSize(n: number): string {
 }
 
 type FileData = { type: "text" | "binary"; content?: string; ext?: string; mime?: string };
-const MIN_PREVIEW_AREA = 2600; // on-screen px² before a file renders its content
+const MIN_PREVIEW_AREA = 1400; // on-screen px² before a file renders its content
+const MAX_RENDER_CHARS = 120_000; // cap rendered source per cell
+const ZOOM_MIN = 0.04;
+const ZOOM_MAX = 8000; // effectively "infinite" — enough to read a whole file
 
 export default function CodeMap({ directories }: { directories: string[] }) {
   const [dir, setDir] = useState(directories[0] ?? "");
@@ -224,7 +227,7 @@ export default function CodeMap({ directories }: { directories: string[] }) {
     const s = Math.min(W / pw, H / ph) * 0.95;
     const tx = (W - pw * s) / 2 - (rect.x / 100) * W * s;
     const ty = (H - ph * s) / 2 - (rect.y / 100) * H * s;
-    setView({ scale: Math.max(0.2, Math.min(80, s)), tx, ty });
+    setView({ scale: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, s)), tx, ty });
   }
 
   function onWheel(e: React.WheelEvent) {
@@ -236,7 +239,7 @@ export default function CodeMap({ directories }: { directories: string[] }) {
     const cy = e.clientY - r.top;
     const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
     setView((v) => {
-      const ns = Math.max(0.2, Math.min(80, v.scale * factor));
+      const ns = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, v.scale * factor));
       const k = ns / v.scale;
       return { scale: ns, tx: cx - (cx - v.tx) * k, ty: cy - (cy - v.ty) * k };
     });
@@ -355,32 +358,32 @@ export default function CodeMap({ directories }: { directories: string[] }) {
           onAuxClick={(e) => e.preventDefault()}
           onContextMenu={(e) => e.preventDefault()}
         >
-          <div
-            className={"cm-canvas" + (view3d ? " cm-3d" : "")}
-            style={{
-              transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})${
-                view3d ? " rotateX(16deg)" : ""
-              }`,
-            }}
-          >
-            {placed.map(({ node, rect, depth, header }) => {
-              const pixelW = (rect.w / 100) * size.w * view.scale;
-              const pixelH = (rect.h / 100) * size.h * view.scale;
-              const area = pixelW * pixelH;
+          <div className={"cm-stage" + (view3d ? " cm-3d" : "")}>
+            {placed.map(({ node, rect, depth }) => {
+              // Screen-space placement: text and borders stay a constant pixel
+              // size no matter the zoom, so growing a cell reveals more file.
+              const sx = (rect.x / 100) * size.w * view.scale + view.tx;
+              const sy = (rect.y / 100) * size.h * view.scale + view.ty;
+              const sw = (rect.w / 100) * size.w * view.scale;
+              const sh = (rect.h / 100) * size.h * view.scale;
+              if (sx > size.w + 60 || sy > size.h + 60 || sx + sw < -60 || sy + sh < -60) {
+                return null; // cull off-screen cells
+              }
               const isDir = node.type === "dir";
               const data = files[node.path];
               const isImg = !isDir && IMG_EXT.has(node.ext ?? "");
-              const bigEnough = area > MIN_PREVIEW_AREA;
-              const showLabel = pixelW > 34 && pixelH > 12;
+              const bigEnough = sw * sh > MIN_PREVIEW_AREA;
+              const showLabel = sw > 28 && sh > 11;
+              const fontSize = Math.min(14, Math.max(7, Math.min(sw, sh) / 6));
               return (
                 <div
                   key={(isDir ? "d:" : "f:") + node.path}
                   className={"cm-cell " + node.type}
                   style={{
-                    left: rect.x + "%",
-                    top: rect.y + "%",
-                    width: `calc(${rect.w}% - 1px)`,
-                    height: `calc(${rect.h}% - 1px)`,
+                    left: sx,
+                    top: sy,
+                    width: Math.max(0, sw - 1),
+                    height: Math.max(0, sh - 1),
                     zIndex: depth * 10 + (isDir ? 0 : 5),
                   }}
                   title={`${node.path} · ${humanSize(node.size)}`}
@@ -388,10 +391,10 @@ export default function CodeMap({ directories }: { directories: string[] }) {
                   onDoubleClick={() => !isDir && openEditor(node)}
                 >
                   {showLabel && (
-                    <div className="cm-label" style={{ fontSize: depth === 0 ? 11 : 10 }}>
+                    <div className="cm-label" style={{ fontSize }}>
                       {!isDir && <span className="cm-icon">{fileIcon(node.ext)}</span>}
                       <span className="cm-name">{node.name}</span>
-                      <span className="cm-size">{humanSize(node.size)}</span>
+                      {sw > 120 && <span className="cm-size">{humanSize(node.size)}</span>}
                     </div>
                   )}
                   {!isDir && bigEnough && isImg && (
@@ -403,7 +406,7 @@ export default function CodeMap({ directories }: { directories: string[] }) {
                     />
                   )}
                   {!isDir && bigEnough && !isImg && data?.type === "text" && (
-                    <pre className="cm-code">{data.content?.slice(0, 4000)}</pre>
+                    <pre className="cm-code">{data.content?.slice(0, MAX_RENDER_CHARS)}</pre>
                   )}
                 </div>
               );
