@@ -15,7 +15,13 @@ opencode is working.
 - **Full-text search** — FTS5 index over every message part (text, reasoning,
   tool calls, files).
 - **Usage statistics** — tokens, cost, cache and per-model breakdowns, daily
-  activity charts and top sessions.
+  activity charts and top sessions. Filter by **user**, by **profile**, or any
+  combination, and drill into **per-session** statistics.
+- **Fork anywhere** — fork a new session from any message with *Fork here*.
+- **Onboarding** — first-run wizard for security (password) and preferences.
+- **Codebase explorer** — select a folder and a CodeCharta-style **treemap** of
+  the code appears beside the session list, with a 2D/3D toggle, zoomable
+  directories, inline code/image previews, and a built-in editor.
 - **Terminal chat (default)** — opens each session as the full opencode TUI
   embedded in the browser, attached to that session (streaming, tools and slash
   commands in one view). Switch to the classic structured chat in **Settings**.
@@ -126,6 +132,20 @@ The embedded terminal uses opencode's native PTY API:
 - the browser connects to `/ptyws/{id}`, which the manager bridges over a
   WebSocket to `opencode /pty/{id}/connect`,
 - xterm.js renders it — all bundled, no external terminal server.
+
+## Codebase explorer
+
+Select a folder (or a directory) in the sidebar and the main view splits in two:
+the session list stays on the left, and a treemap of the codebase appears on the
+right. Directories are sized by total bytes; click a rectangle to zoom in. When
+you zoom into files, each rectangle shows a code snippet, an image preview, or a
+file-type icon. Double-click a text file to open it in the built-in editor and
+save changes.
+
+Tune the walk with `GET /api/tree?directory=<path>&depth=<n>&max=<n>`; common
+build/vendor folders (`node_modules`, `.git`, `dist`, `target`, `.venv`, …) are
+skipped. File reads and writes go through `/api/file` (GET/PUT) and `/api/raw`
+and are confined to the selected directory.
 
 ## Architecture
 

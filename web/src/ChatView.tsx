@@ -10,6 +10,7 @@ import {
   archiveSession,
   createSession,
   openSession,
+  refreshSessions,
   rejectQuestionSafe,
   renameSession,
   replyPermissionSafe,
@@ -34,6 +35,7 @@ export default function ChatView() {
   const [title, setTitle] = useState(session?.title ?? "");
   const [diff, setDiff] = useState<{ files: string[] } | null>(null);
   const [stats, setStats] = useState<SessionStats | null>(null);
+  const [showStats, setShowStats] = useState(false);
 
   // ---- windowed rendering for very long histories ----
   const INITIAL = 30;
@@ -100,6 +102,9 @@ export default function ChatView() {
           <div className="chat-title">{session?.title || "(untitled)"}</div>
           <span className="badge">{session?.directory}</span>
           <div className="spacer" />
+          <button className="btn ghost sm" onClick={() => setShowStats(true)} title="Session statistics">
+            stats
+          </button>
           <button className="btn ghost sm" onClick={loadDiff} title="Show changed files">
             diff
           </button>
@@ -120,6 +125,9 @@ export default function ChatView() {
               hide
             </button>
           </div>
+        )}
+        {showStats && (
+          <SessionStatsCard stats={stats} onClose={() => setShowStats(false)} />
         )}
         <Suspense fallback={<div className="empty">loading terminal…</div>}>
           <TerminalPane sessionId={id} directory={session?.directory} />
@@ -168,6 +176,9 @@ export default function ChatView() {
           <span className="badge running">{status.type === "retry" ? `retry ${status.attempt}` : "working"}</span>
         )}
         <div className="spacer" />
+        <button className="btn ghost sm" onClick={() => setShowStats(true)} title="Session statistics">
+          stats
+        </button>
         <button className="btn ghost sm" onClick={loadDiff} title="Show changed files">
           diff
         </button>
@@ -181,6 +192,8 @@ export default function ChatView() {
           {session?.timeArchived == null ? "🗄 archive" : "unarchive"}
         </button>
       </div>
+
+      {showStats && <SessionStatsCard stats={stats} onClose={() => setShowStats(false)} />}
 
       {(todos.length > 0 || diff || perms.length > 0 || (stats && stats.models.length > 0)) && (
         <div style={{ padding: "8px 20px", borderBottom: "1px solid var(--border)", background: "var(--bg-2)" }}>
@@ -361,12 +374,36 @@ function QuestionPrompt({ req }: { req: QuestionRequest }) {
   );
 }
 
+async function forkAt(sessionId: string, messageID: string) {
+  try {
+    const created = await api.forkSession(sessionId, messageID);
+    if (created?.id) {
+      await refreshSessions();
+      await openSession(created.id);
+      toast("Forked to a new session");
+    }
+  } catch (e) {
+    toast(`Fork failed: ${e}`);
+  }
+}
+
 const MessageRow = memo(function MessageRow({ entry }: { entry: MessageEntry }) {
   const role = entry.info?.role ?? "assistant";
   return (
     <div className={"msg " + role}>
-      <div className="msg-role">
-        {role === "user" ? "You" : role === "assistant" ? "opencode" : role}
+      <div className="msg-head">
+        <div className="msg-role">
+          {role === "user" ? "You" : role === "assistant" ? "opencode" : role}
+        </div>
+        {entry.info?.sessionID && entry.info?.id && (
+          <button
+            className="btn ghost sm fork-btn"
+            title="Fork a new session from this message"
+            onClick={() => forkAt(entry.info.sessionID, entry.info.id)}
+          >
+            Fork here
+          </button>
+        )}
       </div>
       {role === "user" ? (
         <div className="bubble">
@@ -388,6 +425,80 @@ const MessageRow = memo(function MessageRow({ entry }: { entry: MessageEntry }) 
     </div>
   );
 });
+
+function SessionStatsCard({
+  stats,
+  onClose,
+}: {
+  stats: SessionStats | null;
+  onClose: () => void;
+}) {
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="overlay-box" style={{ width: 560 }} onClick={(e) => e.stopPropagation()}>
+        <div className="overlay-title">Session statistics</div>
+        {!stats ? (
+          <div className="muted small">loading…</div>
+        ) : (
+          <>
+            <div className="stat-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+              <div className="stat-card">
+                <div className="stat-value">{fmtTokens(stats.totals.total)}</div>
+                <div className="stat-label">Tokens</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{fmtCost(stats.totals.cost)}</div>
+                <div className="stat-label">Cost</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{stats.userMessages}</div>
+                <div className="stat-label">User messages</div>
+              </div>
+            </div>
+            <table className="markdown" style={{ width: "100%" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left" }}>Model</th>
+                  <th>In</th>
+                  <th>Out</th>
+                  <th>Think</th>
+                  <th>Total</th>
+                  <th>Cost</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.models.map((m) => (
+                  <tr key={m.providerID + m.modelID}>
+                    <td style={{ textAlign: "left" }}>
+                      {m.providerID}/{m.modelID}
+                    </td>
+                    <td style={{ textAlign: "center" }}>{fmtTokens(m.input)}</td>
+                    <td style={{ textAlign: "center" }}>{fmtTokens(m.output)}</td>
+                    <td style={{ textAlign: "center" }}>{fmtTokens(m.reasoning)}</td>
+                    <td style={{ textAlign: "center" }}>{fmtTokens(m.total)}</td>
+                    <td style={{ textAlign: "center" }}>{fmtCost(m.cost)}</td>
+                  </tr>
+                ))}
+                {stats.models.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="muted small">
+                      no usage yet
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </>
+        )}
+        <div className="overlay-foot">
+          <button className="btn sm" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function NewSession() {
   const s = useStore();

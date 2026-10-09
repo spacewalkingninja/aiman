@@ -18,6 +18,8 @@ export type SessionMeta = {
   tags: string | null;
   notes: string | null;
   pinned: number;
+  user_id: string | null;
+  profile_id: string | null;
 };
 
 export type Folder = {
@@ -118,6 +120,48 @@ export function setSessionPinned(sessionId: string, pinned: boolean): void {
        ON CONFLICT(session_id) DO UPDATE SET pinned = excluded.pinned`,
     )
     .run(sessionId, pinned ? 1 : 0);
+}
+
+export function setSessionOwner(
+  sessionId: string,
+  userId: string | null,
+  profileId: string | null,
+): void {
+  mgr
+    .query(
+      `INSERT INTO session_meta(session_id, user_id, profile_id) VALUES(?, ?, ?)
+       ON CONFLICT(session_id) DO UPDATE SET
+         user_id = COALESCE(excluded.user_id, session_meta.user_id),
+         profile_id = COALESCE(excluded.profile_id, session_meta.profile_id)`,
+    )
+    .run(sessionId, userId, profileId);
+}
+
+export function getSessionMeta(sessionId: string): SessionMeta | null {
+  return (
+    (mgr.query("SELECT * FROM session_meta WHERE session_id = ?").get(sessionId) as
+      | SessionMeta
+      | undefined) ?? null
+  );
+}
+
+/** Session ids matching an optional user and/or profile filter. */
+export function sessionIdsByMeta(filter: { userId?: string; profileId?: string } = {}): string[] {
+  const sets: string[] = [];
+  const vals: any[] = [];
+  if (filter.userId) {
+    sets.push("user_id = ?");
+    vals.push(filter.userId);
+  }
+  if (filter.profileId) {
+    sets.push("profile_id = ?");
+    vals.push(filter.profileId);
+  }
+  const where = sets.length ? " WHERE " + sets.join(" AND ") : "";
+  const rows = mgr
+    .query(`SELECT session_id FROM session_meta${where}`)
+    .all(...vals) as { session_id: string }[];
+  return rows.map((r) => r.session_id);
 }
 
 export function setArchived(sessionId: string, archived: boolean): void {

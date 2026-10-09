@@ -19,6 +19,7 @@ import Profiles from "./Profiles";
 import SettingsView from "./SettingsView";
 import Overlays from "./Overlays";
 import Login from "./Login";
+import Onboarding from "./Onboarding";
 
 export default function App() {
   const s = useStore();
@@ -53,6 +54,7 @@ export default function App() {
   }
 
   if (!s.auth.authenticated) return <Login />;
+  if (s.onboarded === false) return <Onboarding />;
 
   const isAdmin = !!s.auth.user?.is_admin;
   const setView = (view: any) => store.set({ view });

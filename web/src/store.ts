@@ -66,6 +66,7 @@ type State = {
   profiles: Profile[];
   activeProfile: string | null;
   chatMode: ChatMode;
+  onboarded: boolean | null;
 };
 
 let state: State = {
@@ -94,6 +95,7 @@ let state: State = {
   activeProfile: null,
   chatMode: ((typeof localStorage !== "undefined" && localStorage.getItem("oc_chat_mode")) ||
     "terminal") as ChatMode,
+  onboarded: null,
 };
 
 const listeners = new Set<() => void>();
@@ -131,6 +133,13 @@ export function setChatMode(mode: ChatMode) {
   localStorage.setItem("oc_chat_mode", mode);
   set({ chatMode: mode });
   toast(mode === "terminal" ? "chat: terminal (opencode TUI)" : "chat: web");
+}
+
+export async function completeOnboarding() {
+  try {
+    await api.setOnboarded(true);
+  } catch {}
+  set({ onboarded: true });
 }
 
 export function cycleAgent(dir = 1) {
@@ -293,11 +302,18 @@ export async function logout() {
     activeSessionId: null,
     entries: {},
     routeReady: false,
+    onboarded: null,
   });
 }
 
 export async function bootstrap() {
   await Promise.all([refreshSessions(), refreshMeta(), loadModelsAgents(), loadProfiles()]);
+  try {
+    const cfg = await api.config();
+    set({ onboarded: cfg.onboarded });
+  } catch {
+    set({ onboarded: true });
+  }
   await applyLocation();
   set({ routeReady: true });
   connectEvents();
@@ -362,6 +378,14 @@ export async function openSession(id: string) {
     const todos = await fetch(`/oc/session/${id}/todo`).then((r) => r.json());
     set({ todos: { ...state.todos, [id]: todos } });
   } catch {}
+  // attribute unowned sessions to the current user (for per-user stats)
+  const meta = state.sessions.find((x) => x.id === id);
+  if (meta && !meta.userId) {
+    api
+      .claimSession(id)
+      .then(() => refreshSessions())
+      .catch(() => {});
+  }
   // pick up any pending prompts that may have arrived before we opened
   try {
     const [perms, qs] = await Promise.all([api.listPermissions(), api.listQuestions()]);

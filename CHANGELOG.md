@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-09
+
+### Added
+- **Per-user / per-profile statistics.** Sessions are attributed to the user who
+  creates or first opens them, and to their active config profile. The Stats view
+  can be filtered by user, by profile, or any combination.
+- **Per-session statistics.** A `stats` panel in the session header (available in
+  both chat modes) shows tokens, cost, user-message count and per-model usage.
+- **Fork here.** Every message in the web chat has a *Fork here* action that
+  creates a new session from that point (`POST /session/{id}/fork`).
+- **Onboarding.** New and first-run users get a short wizard covering security
+  (password) and preferences (chat mode). Completion is stored per user.
+- **Codebase explorer.** Opening a folder (or directory) in the sidebar splits
+  the view: the session list stays on the left, and a **CodeCharta-style treemap**
+  of the codebase appears on the right. It has a 2D/3D toggle, click-to-zoom
+  directories, inline code/image previews inside file rectangles, and a full
+  editor (`double-click` a file) with save support. Files are read/written
+  through the manager with path-escape protection and sensible ignores
+  (`node_modules`, `.git`, `dist`, …).
+- New endpoints: `/api/stats?user=&profile=`, `/api/stats/filters`,
+  `/api/sessions/{id}/claim`, `/api/tree`, `/api/file` (GET/PUT), `/api/raw`,
+  `/api/me/onboarded`, `/api/me/password`.
+
+### Changed
+- Installers continue to install `opencode` **only when it is not already
+  present** (and likewise for Bun).
+
 ## [1.2.0] - 2026-10-09
 
 ### Added

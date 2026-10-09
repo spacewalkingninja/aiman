@@ -26,7 +26,18 @@ export type Session = {
   folderId: string | null;
   tags: string | null;
   notes: string | null;
+  userId: string | null;
+  profileId: string | null;
   usage: Usage | null;
+};
+
+export type TreeNode = {
+  name: string;
+  path: string;
+  type: "dir" | "file";
+  size: number;
+  ext?: string;
+  children?: TreeNode[];
 };
 
 export type Stats = {
@@ -324,13 +335,73 @@ export const api = {
     fetch(`/oc/session/${sessionId}/summarize`, { method: "POST" }).then(j),
   diff: (sessionId: string) =>
     fetch(`/oc/session/${sessionId}/diff`).then(j<{ files: string[] }>),
-  stats: () => fetch("/api/stats").then(j<Stats>),
+  stats: (params: { user?: string; profile?: string } = {}) => {
+    const clean: Record<string, string> = {};
+    if (params.user) clean.user = params.user;
+    if (params.profile) clean.profile = params.profile;
+    return fetch("/api/stats?" + new URLSearchParams(clean).toString()).then(j<Stats>);
+  },
   sessionStats: (sessionId: string) =>
     fetch(`/api/sessions/${sessionId}/stats`).then(j<SessionStats>),
 
   config: () =>
     fetch("/api/config").then(
-      j<{ opencodeUrl: string; terminal: boolean; platform: string }>,
+      j<{ opencodeUrl: string; terminal: boolean; platform: string; onboarded: boolean }>,
+    ),
+  setOnboarded: (onboarded: boolean) =>
+    fetch("/api/me/onboarded", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ onboarded }),
+    }).then(j<{ ok: boolean; onboarded: boolean }>),
+  changePassword: (password: string) =>
+    fetch("/api/me/password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password }),
+    }).then(j<{ ok: boolean }>),
+  claimSession: (sessionId: string) =>
+    fetch(`/api/sessions/${sessionId}/claim`, { method: "POST" }).then(j),
+
+  // ---- codebase explorer ----
+  tree: (directory: string, opts: { depth?: number; max?: number } = {}) =>
+    fetch(
+      "/api/tree?" +
+        new URLSearchParams({
+          directory,
+          ...(opts.depth ? { depth: String(opts.depth) } : {}),
+          ...(opts.max ? { max: String(opts.max) } : {}),
+        }).toString(),
+    ).then(j<TreeNode & { root: string }>),
+  fileGet: (directory: string, path: string) =>
+    fetch("/api/file?" + new URLSearchParams({ directory, path }).toString()).then(
+      j<{
+        type: "text" | "binary";
+        ext?: string;
+        mime?: string;
+        size?: number;
+        content?: string;
+        truncated?: boolean;
+      }>,
+    ),
+  filePut: (directory: string, path: string, content: string) =>
+    fetch("/api/file", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ directory, path, content }),
+    }).then(j),
+  rawUrl: (directory: string, path: string) =>
+    "/api/raw?" + new URLSearchParams({ directory, path }).toString(),
+
+  forkSession: (sessionId: string, messageID: string) =>
+    fetch(`/oc/session/${sessionId}/fork`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messageID }),
+    }).then(j<{ id: string; title: string }>),
+  statsFilters: () =>
+    fetch("/api/stats/filters").then(
+      j<{ users: { id: string; username: string }[]; profiles: { id: string; name: string }[] }>,
     ),
 
   // ---- opencode native PTY (terminal) ----

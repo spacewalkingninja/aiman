@@ -8,6 +8,7 @@ import {
   useStore,
 } from "./store";
 import { fmtCost, fmtTokens } from "./StatsView";
+import CodeMap from "./CodeMap";
 
 function timeAgo(ms: number) {
   const d = Date.now() - ms;
@@ -24,8 +25,10 @@ function timeAgo(ms: number) {
 export default function SessionList() {
   const s = useStore();
   const rows = filterSessions(s.sessions, s.filters);
+  const scopedDirs = [...new Set(rows.map((r) => r.directory))].filter(Boolean);
+  const split = !!(s.filters.folder || s.filters.directory);
 
-  return (
+  const pane = (
     <div className="main">
       <div className="chat-head">
         <div className="chat-title">
@@ -122,6 +125,21 @@ export default function SessionList() {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+
+  if (!split) return pane;
+
+  return (
+    <div className="split">
+      <div className="split-left">{pane}</div>
+      <div className="split-right">
+        {scopedDirs.length ? (
+          <CodeMap directories={scopedDirs} />
+        ) : (
+          <div className="empty">No directory to visualise.</div>
+        )}
       </div>
     </div>
   );

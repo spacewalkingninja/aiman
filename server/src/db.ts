@@ -92,6 +92,17 @@ mgr.exec(`
   );
 `);
 
+// ---- lightweight migrations (add columns to existing databases) ----
+function ensureColumn(table: string, column: string, decl: string): void {
+  const cols = mgr.query(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) {
+    mgr.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${decl}`);
+  }
+}
+ensureColumn("session_meta", "user_id", "TEXT");
+ensureColumn("session_meta", "profile_id", "TEXT");
+ensureColumn("user_prefs", "onboarded", "INTEGER NOT NULL DEFAULT 0");
+
 export function getSetting(key: string): string | null {
   const row = mgr.query("SELECT value FROM settings WHERE key = ?").get(key) as
     | { value: string }

@@ -1,4 +1,5 @@
-import { join, normalize } from "node:path";
+import { basename, extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
+import { readdir, stat } from "node:fs/promises";
 import { syncFts, pruneFts, search } from "./fts";
 import { aggregateStats, sessionStats, usageBySession } from "./stats";
 import {
@@ -7,11 +8,13 @@ import {
   deleteProfile,
   ensureDefaultProfile,
   getUserActiveProfile,
+  getUserOnboarded,
   getProfile,
   listProfiles,
   removeProfileAuth,
   renameProfile,
   setProfileAuth,
+  setUserOnboarded,
 } from "./profiles";
 import {
   authenticate,
@@ -46,8 +49,10 @@ import {
   listFolders,
   renameSession,
   sessionDirectory,
+  sessionIdsByMeta,
   setArchived,
   setSessionFolder,
+  setSessionOwner,
   setSessionPinned,
   updateFolder,
   type SessionRow,
@@ -80,6 +85,8 @@ function serialize(s: SessionRow, meta: ReturnType<typeof getMetaMap>) {
     folderId: m?.folder_id ?? null,
     tags: m?.tags ?? null,
     notes: m?.notes ?? null,
+    userId: m?.user_id ?? null,
+    profileId: m?.profile_id ?? null,
   };
 }
 
@@ -302,6 +309,111 @@ function wsClose(ws: any) {
   } catch {}
 }
 
+// ---- codebase explorer (treemap data + file access) -----------------------
+
+const FS_IGNORE = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  ".next",
+  ".nuxt",
+  ".cache",
+  ".parcel-cache",
+  ".venv",
+  "venv",
+  "__pycache__",
+  "coverage",
+  "target",
+  ".turbo",
+  ".svelte-kit",
+  ".output",
+  ".DS_Store",
+]);
+
+const MIME: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+  ".bmp": "image/bmp",
+  ".pdf": "application/pdf",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf",
+};
+
+/** Resolve `rel` inside `root`, refusing paths that escape it. */
+function safeResolve(root: string, rel: string): string | null {
+  const base = resolve(root);
+  const abs = resolve(base, rel || ".");
+  const r = relative(base, abs);
+  if (r.startsWith("..") || isAbsolute(r)) return null;
+  return abs;
+}
+
+type TreeNode = {
+  name: string;
+  path: string;
+  type: "dir" | "file";
+  size: number;
+  ext?: string;
+  children?: TreeNode[];
+};
+
+async function buildTree(
+  root: string,
+  absDir: string,
+  relDir: string,
+  maxDepth: number,
+  budget: { left: number },
+): Promise<TreeNode[]> {
+  if (maxDepth < 0 || budget.left <= 0) return [];
+  let entries;
+  try {
+    entries = await readdir(absDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const out: TreeNode[] = [];
+  for (const e of entries) {
+    if (budget.left <= 0) break;
+    if (e.name.startsWith(".") && e.name !== ".env" && e.name !== ".gitignore") continue;
+    if (FS_IGNORE.has(e.name)) continue;
+    const childRel = relDir ? `${relDir}/${e.name}` : e.name;
+    const childAbs = join(absDir, e.name);
+    if (e.isDirectory()) {
+      budget.left--;
+      const children = await buildTree(root, childAbs, childRel, maxDepth - 1, budget);
+      const size = children.reduce((n, c) => n + c.size, 0);
+      if (size > 0) out.push({ name: e.name, path: childRel, type: "dir", size, children });
+    } else if (e.isFile()) {
+      let sz = 0;
+      try {
+        sz = (await stat(childAbs)).size;
+      } catch {}
+      budget.left--;
+      out.push({
+        name: e.name,
+        path: childRel,
+        type: "file",
+        size: Math.max(sz, 1),
+        ext: extname(e.name).toLowerCase(),
+      });
+    }
+  }
+  return out;
+}
+
 async function handle(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const p = url.pathname;
@@ -505,15 +617,122 @@ async function handle(req: Request): Promise<Response> {
       const r = await fetch(OPENCODE_URL + "/pty", { method: "GET" });
       terminal = r.ok;
     } catch {}
-    return json({ opencodeUrl: OPENCODE_URL, terminal, platform: process.platform });
+    return json({
+      opencodeUrl: OPENCODE_URL,
+      terminal,
+      platform: process.platform,
+      onboarded: getUserOnboarded(user!.id),
+    });
+  }
+
+  if (p === "/api/me/onboarded" && method === "POST") {
+    const b = await readBody(req);
+    setUserOnboarded(user!.id, b.onboarded !== false);
+    return json({ ok: true, onboarded: getUserOnboarded(user!.id) });
+  }
+
+  if (p === "/api/me/password" && method === "POST") {
+    const b = await readBody(req);
+    const err = validatePassword(String(b.password ?? ""));
+    if (err) return json({ error: err }, 400);
+    await setPassword(user!.id, String(b.password));
+    return json({ ok: true });
   }
 
   if (p === "/api/sessions" && method === "GET") return json(listSessions(url));
 
-  if (p === "/api/stats" && method === "GET") return json(aggregateStats());
+  if (p === "/api/stats" && method === "GET") {
+    const userId = url.searchParams.get("user") || undefined;
+    const profileId = url.searchParams.get("profile") || undefined;
+    if (userId || profileId) {
+      return json(aggregateStats(sessionIdsByMeta({ userId, profileId })));
+    }
+    return json(aggregateStats());
+  }
+
+  if (p === "/api/stats/filters" && method === "GET") {
+    return json({
+      users: listUsers(),
+      profiles: listProfiles().map((x) => ({ id: x.id, name: x.name })),
+    });
+  }
 
   let sm = p.match(/^\/api\/sessions\/([^/]+)\/stats$/);
   if (sm && method === "GET") return json(sessionStats(sm[1]!));
+
+  // ---- codebase explorer ----
+  if (p === "/api/tree" && method === "GET") {
+    const directory = url.searchParams.get("directory");
+    if (!directory) return json({ error: "directory required" }, 400);
+    const root = resolve(directory);
+    const maxDepth = Number(url.searchParams.get("depth") ?? "6");
+    try {
+      if (!(await stat(root)).isDirectory()) return json({ error: "not a directory" }, 400);
+    } catch {
+      return json({ error: "directory not found" }, 404);
+    }
+    const budget = { left: Number(url.searchParams.get("max") ?? "6000") };
+    const children = await buildTree(root, root, "", maxDepth, budget);
+    const size = children.reduce((n, c) => n + c.size, 0);
+    return json({ root, name: basename(root), type: "dir", path: "", size, children });
+  }
+
+  if (p === "/api/file" && method === "GET") {
+    const directory = url.searchParams.get("directory");
+    const relPath = url.searchParams.get("path");
+    if (!directory || !relPath) return json({ error: "directory and path required" }, 400);
+    const abs = safeResolve(directory, relPath);
+    if (!abs) return json({ error: "forbidden" }, 403);
+    const f = Bun.file(abs);
+    if (!(await f.exists())) return json({ error: "not found" }, 404);
+    const ext = extname(abs).toLowerCase();
+    const mime = MIME[ext];
+    if (mime) return json({ type: "binary", mime, size: f.size, ext });
+    const text = await f.text();
+    return json({
+      type: "text",
+      ext,
+      size: f.size,
+      content: text.length > 400_000 ? text.slice(0, 400_000) : text,
+      truncated: text.length > 400_000,
+    });
+  }
+
+  if (p === "/api/file" && method === "PUT") {
+    const b = await readBody(req);
+    const directory = String(b.directory ?? "");
+    const relPath = String(b.path ?? "");
+    if (!directory || !relPath) return json({ error: "directory and path required" }, 400);
+    const abs = safeResolve(directory, relPath);
+    if (!abs) return json({ error: "forbidden" }, 403);
+    if (typeof b.content !== "string") return json({ error: "content required" }, 400);
+    try {
+      await Bun.write(abs, b.content);
+    } catch (e) {
+      return json({ error: String(e) }, 500);
+    }
+    return json({ ok: true, size: b.content.length });
+  }
+
+  if (p === "/api/raw" && method === "GET") {
+    const directory = url.searchParams.get("directory");
+    const relPath = url.searchParams.get("path");
+    if (!directory || !relPath) return new Response("bad request", { status: 400 });
+    const abs = safeResolve(directory, relPath);
+    if (!abs) return new Response("forbidden", { status: 403 });
+    const f = Bun.file(abs);
+    if (!(await f.exists())) return new Response("not found", { status: 404 });
+    const headers = new Headers();
+    headers.set("content-type", MIME[extname(abs).toLowerCase()] ?? "application/octet-stream");
+    headers.set("cache-control", "private, max-age=60");
+    return new Response(f, { headers });
+  }
+
+  let cm = p.match(/^\/api\/sessions\/([^/]+)\/claim$/);
+  if (cm && method === "POST") {
+    setSessionOwner(cm[1]!, user!.id, getUserActiveProfile(user!.id));
+    return json({ ok: true });
+  }
 
   if (p === "/api/search" && method === "GET") {
     const q = url.searchParams.get("q") ?? "";

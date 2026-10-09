@@ -29,36 +29,105 @@ export default function StatsView() {
   const s = useStore();
   const [stats, setStats] = useState<Stats | null>(null);
   const [busy, setBusy] = useState(true);
+  const [users, setUsers] = useState<{ id: string; username: string }[]>([]);
+  const [profiles, setProfiles] = useState<{ id: string; name: string }[]>([]);
+  const [userId, setUserId] = useState("");
+  const [profileId, setProfileId] = useState("");
 
   useEffect(() => {
+    api
+      .statsFilters()
+      .then((f) => {
+        setUsers(f.users);
+        setProfiles(f.profiles);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    setBusy(true);
     (async () => {
       try {
         const [st, sess] = await Promise.all([
-          api.stats(),
+          api.stats({ user: userId || undefined, profile: profileId || undefined }),
           api.sessions({ archived: "all" }),
         ]);
+        if (!alive) return;
         setStats(st);
         store.set({ sessions: sess });
       } catch (e) {
         toast(`Failed to load stats: ${e}`);
       } finally {
-        setBusy(false);
+        if (alive) setBusy(false);
       }
     })();
-  }, []);
+    return () => {
+      alive = false;
+    };
+  }, [userId, profileId]);
 
   if (busy || !stats) return <div className="empty">loading stats…</div>;
 
   const t = stats.totals;
   const maxDay = Math.max(1, ...stats.days.map((d) => d.total));
-  const topSessions: Session[] = [...s.sessions]
+  const filtered = s.sessions.filter(
+    (x) =>
+      (!userId || x.userId === userId) && (!profileId || x.profileId === profileId),
+  );
+  const topSessions: Session[] = [...filtered]
     .filter((x) => x.usage)
     .sort((a, b) => (b.usage?.total ?? 0) - (a.usage?.total ?? 0))
     .slice(0, 15);
 
   return (
     <div className="search-wrap" style={{ maxWidth: 1100 }}>
-      <h2 style={{ marginTop: 0 }}>Usage statistics</h2>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <h2 style={{ margin: "0 12px 0 0" }}>Usage statistics</h2>
+        <label className="small muted">
+          User
+          <select
+            className="input"
+            style={{ marginLeft: 6 }}
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+          >
+            <option value="">All users</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.username}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="small muted">
+          Profile
+          <select
+            className="input"
+            style={{ marginLeft: 6 }}
+            value={profileId}
+            onChange={(e) => setProfileId(e.target.value)}
+          >
+            <option value="">All profiles</option>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {(userId || profileId) && (
+          <button
+            className="btn ghost sm"
+            onClick={() => {
+              setUserId("");
+              setProfileId("");
+            }}
+          >
+            clear
+          </button>
+        )}
+      </div>
 
       <div className="stat-grid">
         <Card label="Sessions" value={String(t.sessions)} sub={`${t.archived} archived`} />
@@ -141,10 +210,7 @@ export default function StatsView() {
             <tr
               key={x.id}
               style={{ cursor: "pointer" }}
-              onClick={() => {
-                store.set({ view: "chat" });
-                openSession(x.id);
-              }}
+              onClick={() => openSession(x.id)}
             >
               <td style={{ textAlign: "left" }}>{x.title || "(untitled)"}</td>
               <td style={{ textAlign: "center" }}>{x.usage?.messages ?? 0}</td>
@@ -152,6 +218,13 @@ export default function StatsView() {
               <td style={{ textAlign: "center" }}>{fmtCost(x.usage?.cost ?? 0)}</td>
             </tr>
           ))}
+          {topSessions.length === 0 && (
+            <tr>
+              <td colSpan={4} className="muted small">
+                no sessions for this filter
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

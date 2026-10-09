@@ -122,6 +122,22 @@ export function setUserActiveProfile(userId: string, profileId: string | null): 
     .run(userId, profileId);
 }
 
+export function getUserOnboarded(userId: string): boolean {
+  const r = mgr.query("SELECT onboarded FROM user_prefs WHERE user_id = ?").get(userId) as
+    | { onboarded: number }
+    | undefined;
+  return !!r?.onboarded;
+}
+
+export function setUserOnboarded(userId: string, onboarded: boolean): void {
+  mgr
+    .query(
+      `INSERT INTO user_prefs(user_id, onboarded) VALUES(?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET onboarded = excluded.onboarded`,
+    )
+    .run(userId, onboarded ? 1 : 0);
+}
+
 /** Create a "default" profile from the current opencode auth if none exist. */
 export function ensureDefaultProfile(): void {
   const n = (mgr.query("SELECT COUNT(*) AS n FROM profiles").get() as { n: number }).n;
