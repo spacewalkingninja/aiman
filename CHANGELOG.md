@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.5] - 2026-10-09
+
+### Fixed
+- **Blank terminal / `assignment to undeclared variable i` in the terminal pane.**
+  The bundled xterm.js 6.x renderer produced that runtime error under some
+  browsers, leaving the terminal empty. Pinned `@xterm/xterm` to the stable
+  `5.5.0` (with `@xterm/addon-fit@0.10.0`), which minifies cleanly.
+
 ## [1.3.4] - 2026-10-09
 
 ### Changed
