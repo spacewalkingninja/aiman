@@ -148,8 +148,14 @@ export default function ChatView() {
   }
 
   async function loadDiff() {
-    const d = await api.diff(id).catch(() => null);
-    setDiff(d);
+    const raw: any = await api.diff(id, session?.directory).catch(() => null);
+    if (!raw) return setDiff(null);
+    // opencode returns an array of { file, patch, additions, deletions };
+    // tolerate the older { files: [...] } shape too.
+    const files: string[] = Array.isArray(raw)
+      ? raw.map((x: any) => x?.file ?? x?.path ?? String(x))
+      : (raw.files ?? []);
+    setDiff({ files });
   }
 
   return (

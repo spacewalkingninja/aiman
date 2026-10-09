@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-10-09
+
+### Fixed
+- **"Changed files: none" when using diff.** The client expected
+  `{ files: [...] }` but opencode's `/session/{id}/diff` returns an array of
+  `{ file, patch, additions, deletions }`; the response is now normalised and
+  the session's directory is passed so opencode resolves the right project.
+  (opencode only reports files it tracked for the session — sessions whose
+  directory isn't a tracked project legitimately return an empty diff.)
+- **Pop-out windows now show the session title** in the window/tab title
+  (`<session title> · aiman`).
+
 ## [1.4.0] - 2026-10-09
 
 ### Added

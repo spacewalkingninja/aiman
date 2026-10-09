@@ -37,6 +37,12 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  // Reflect the active session (or view) in the browser/window title.
+  useEffect(() => {
+    const sess = s.sessions.find((x) => x.id === s.activeSessionId);
+    document.title = sess?.title ? `${sess.title} · aiman` : "aiman · opencode sessions";
+  }, [s.activeSessionId, s.sessions]);
+
   const popout =
     typeof location !== "undefined" && new URLSearchParams(location.search).has("popout");
 

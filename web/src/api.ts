@@ -333,8 +333,11 @@ export const api = {
     }).then(j),
   summarize: (sessionId: string) =>
     fetch(`/oc/session/${sessionId}/summarize`, { method: "POST" }).then(j),
-  diff: (sessionId: string) =>
-    fetch(`/oc/session/${sessionId}/diff`).then(j<{ files: string[] }>),
+  diff: (sessionId: string, directory?: string) =>
+    fetch(
+      `/oc/session/${sessionId}/diff` +
+        (directory ? "?directory=" + encodeURIComponent(directory) : ""),
+    ).then(j<unknown>),
   stats: (params: { user?: string; profile?: string } = {}) => {
     const clean: Record<string, string> = {};
     if (params.user) clean.user = params.user;
