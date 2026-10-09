@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.5] - 2026-10-09
+
+### Fixed
+- **Switching provider profiles didn't take effect in running sessions.**
+  opencode caches provider auth in per-directory instances, so a runtime
+  `PUT /auth` updated `auth.json` but existing instances kept the old key
+  (e.g. you'd still get the old key's "Insufficient Balance"). Profile
+  activation now disposes the affected opencode instances so the next request
+  re-reads the new keys.
+
 ## [1.5.4] - 2026-10-09
 
 ### Changed

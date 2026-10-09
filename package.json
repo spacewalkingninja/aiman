@@ -1,6 +1,6 @@
 {
   "name": "aiman",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "description": "Self-hosted web UI and session manager for opencode — browse, search, organise and analyse your opencode sessions.",
   "type": "module",
   "bin": {

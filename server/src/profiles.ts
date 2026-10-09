@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, copyFileSync } from "node:fs";
 import { mgr } from "./db";
+import { distinctDirectories } from "./manager";
 import { OPENCODE_AUTH, AUTH_BACKUP, OPENCODE_URL } from "./config";
 
 const AUTH_JSON = OPENCODE_AUTH;
@@ -199,6 +200,23 @@ export async function applyProfile(profileId: string): Promise<{ applied: string
       if (res.ok) applied.push(providerID);
     } catch {}
   }
+
+  // opencode caches provider auth in per-directory instances, so a runtime
+  // auth change isn't picked up by instances that already exist. Dispose them
+  // so the next request re-reads the new keys (otherwise you keep getting the
+  // old key's errors, e.g. "Insufficient Balance").
+  try {
+    const dirs = new Set<string>(distinctDirectories());
+    for (const d of dirs) {
+      try {
+        await fetch(
+          `${OPENCODE_URL}/instance/dispose?directory=${encodeURIComponent(d)}`,
+          { method: "POST" },
+        );
+      } catch {}
+    }
+  } catch {}
+
   return { applied, removed };
 }
 
