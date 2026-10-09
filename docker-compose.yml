@@ -1,0 +1,20 @@
+services:
+  aiman:
+    build: .
+    image: aiman
+    ports:
+      - "4097:4097"
+    environment:
+      # Point at an opencode server (host or another container).
+      OPENCODE_URL: "http://host.docker.internal:4096"
+      # Where opencode stores its database (mounted read-only below).
+      OPENCODE_DB: "/opencode/opencode.db"
+      OPENCODE_AUTH: "/opencode/auth.json"
+    volumes:
+      - aiman-data:/data
+      # Mount your opencode data directory read-only.
+      - "${OPENCODE_DATA_DIR:-~/.local/share/opencode}:/opencode:ro"
+    restart: unless-stopped
+
+volumes:
+  aiman-data:

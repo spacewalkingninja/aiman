@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Terminal</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #0b0d10; font-family: arial; }
+      #terminal { width: 100vw; height: 100vh; }
+      #status { position: fixed; top: 6px; right: 10px; font-size: 12px; z-index: 10; font-family: monospace; }
+      .ok { color: #34d399; } .bad { color: #f87171; }
+    </style>
+    <link rel="stylesheet" href="https://unpkg.com/xterm@4.11.0/css/xterm.css" />
+  </head>
+  <body>
+    <span id="status">connecting…</span>
+    <div id="terminal"></div>
+    <script src="https://unpkg.com/xterm@4.11.0/lib/xterm.js"></script>
+    <script src="https://unpkg.com/xterm-addon-fit@0.5.0/lib/xterm-addon-fit.js"></script>
+    <script src="https://unpkg.com/xterm-addon-web-links@0.4.0/lib/xterm-addon-web-links.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+      // Determine the reverse-proxy prefix so socket.io hits /terminal/socket.io
+      // when mounted under Apache, or /socket.io when run directly.
+      const prefix = location.pathname.startsWith("/terminal") ? "/terminal" : "";
+
+      const term = new Terminal({
+        cursorBlink: true,
+        macOptionIsMeta: true,
+        scrollback: 5000,
+        fontSize: 13,
+        theme: { background: "#0b0d10" },
+      });
+      const fit = new FitAddon.FitAddon();
+      term.loadAddon(fit);
+      term.loadAddon(new WebLinksAddon.WebLinksAddon());
+      term.open(document.getElementById("terminal"));
+      fit.fit();
+
+      const status = document.getElementById("status");
+      const params = new URLSearchParams(location.search);
+      const query = {};
+      for (const k of ["cmd", "cwd", "token"]) if (params.get(k)) query[k] = params.get(k);
+
+      const socket = io("/pty", { path: prefix + "/socket.io", query });
+
+      term.onData((data) => socket.emit("pty-input", { input: data }));
+
+      socket.on("pty-output", (data) => term.write(data.output));
+      socket.on("connect", () => {
+        status.textContent = "connected";
+        status.className = "ok";
+        fitToscreen();
+        term.focus();
+      });
+      socket.on("disconnect", () => {
+        status.textContent = "disconnected";
+        status.className = "bad";
+      });
+
+      function fitToscreen() {
+        fit.fit();
+        socket.emit("resize", { cols: term.cols, rows: term.rows });
+      }
+      let t;
+      function debounce(fn, ms) {
+        return function () {
+          clearTimeout(t);
+          t = setTimeout(fn, ms);
+        };
+      }
+      window.addEventListener("resize", debounce(fitToscreen, 100));
+    </script>
+  </body>
+</html>

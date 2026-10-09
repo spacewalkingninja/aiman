@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install web dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck web
+        working-directory: web
+        run: bunx tsc -p tsconfig.json --noEmit
+
+      - name: Build web UI
+        working-directory: web
+        run: bun run build
+
+      - name: Verify server loads
+        run: bun build server/src/index.ts --target bun --outfile /tmp/aiman-server.js

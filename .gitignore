@@ -1,0 +1,36 @@
+# dependencies
+node_modules/
+web/node_modules/
+
+# vendored pyxtermjs virtualenv (the app source is committed, the venv is not)
+vendor/pyxtermjs-venv/
+
+# build output (produced by `bun run build`, not committed)
+dist/
+
+# runtime data — contains the manager database, credentials and backups
+data/
+logs/
+*.log
+
+# sqlite / backups
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db-shm
+*.db-wal
+opencode-backup-*.sqlite
+opencode-auth-backup.json
+
+# secrets
+.env
+.env.*
+!.env.example
+aiman.credentials.txt
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
