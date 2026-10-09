@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type UpdateInfo } from "./api";
+import { api, type ServiceStatus, type UpdateInfo } from "./api";
 import { setChatMode, setTheme, store, toast, useStore } from "./store";
 import { THEMES } from "./themes";
 
@@ -12,6 +12,8 @@ export default function SettingsView() {
   const [upd, setUpd] = useState<UpdateInfo | null>(null);
   const [checking, setChecking] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [svc, setSvc] = useState<ServiceStatus | null>(null);
+  const [svcBusy, setSvcBusy] = useState(false);
 
   useEffect(() => {
     api
@@ -22,7 +24,62 @@ export default function SettingsView() {
       .update()
       .then(setUpd)
       .catch(() => {});
+    api
+      .service()
+      .then(setSvc)
+      .catch(() => {});
   }, []);
+
+  function waitForRestart() {
+    // Poll until the manager answers again, then reload.
+    let tries = 0;
+    const t = setInterval(async () => {
+      tries++;
+      try {
+        await fetch("/api/health");
+        clearInterval(t);
+        location.reload();
+      } catch {
+        if (tries > 60) clearInterval(t);
+      }
+    }, 1000);
+  }
+
+  async function installService() {
+    setSvcBusy(true);
+    try {
+      const r = await api.serviceInstall();
+      toast(r.detail);
+      setSvc(await api.service());
+    } catch (e) {
+      toast(`Failed: ${e}`);
+    } finally {
+      setSvcBusy(false);
+    }
+  }
+
+  async function uninstallService() {
+    setSvcBusy(true);
+    try {
+      const r = await api.serviceUninstall();
+      toast(r.detail);
+      setSvc(await api.service());
+    } catch (e) {
+      toast(`Failed: ${e}`);
+    } finally {
+      setSvcBusy(false);
+    }
+  }
+
+  async function restartNow() {
+    try {
+      await api.restart();
+      toast("restarting aiman…");
+      waitForRestart();
+    } catch (e) {
+      toast(`Failed: ${e}`);
+    }
+  }
 
   async function checkUpdate(force: boolean) {
     setChecking(true);
@@ -39,11 +96,10 @@ export default function SettingsView() {
     setApplying(true);
     try {
       const r = await api.applyUpdate();
-      toast(`Updated to v${r.latest} — restart aiman to apply`);
-      await checkUpdate(true);
+      toast(`Updated to v${r.latest} — restarting…`);
+      waitForRestart();
     } catch (e) {
       toast(`Update failed: ${e}`);
-    } finally {
       setApplying(false);
     }
   }
@@ -198,6 +254,48 @@ export default function SettingsView() {
       {upd && !upd.available && !upd.error && (
         <p className="muted small">You're on the latest version.</p>
       )}
+
+      <h3 style={{ marginTop: 24 }}>Background service</h3>
+      <p className="muted small">
+        Run aiman automatically in the background and at start-up. Uses systemd
+        (Linux), launchd (macOS) or Task Scheduler (Windows).
+      </p>
+      <table className="markdown" style={{ width: "100%" }}>
+        <tbody>
+          <tr>
+            <td>Manager</td>
+            <td>{svc?.manager ?? "…"}</td>
+          </tr>
+          <tr>
+            <td>Status</td>
+            <td>
+              {svc ? (
+                svc.installed ? (
+                  <span className="badge completed">installed</span>
+                ) : (
+                  <span className="badge">not installed</span>
+                )
+              ) : (
+                "…"
+              )}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+        {svc?.installed ? (
+          <button className="btn sm danger" disabled={svcBusy} onClick={uninstallService}>
+            {svcBusy ? "working…" : "Uninstall service"}
+          </button>
+        ) : (
+          <button className="btn sm primary" disabled={svcBusy} onClick={installService}>
+            {svcBusy ? "working…" : "Install as background service"}
+          </button>
+        )}
+        <button className="btn sm" onClick={restartNow}>
+          Restart aiman
+        </button>
+      </div>
 
       <div style={{ marginTop: 24 }}>
         <button className="btn ghost" onClick={() => store.set({ view: "chat" })}>

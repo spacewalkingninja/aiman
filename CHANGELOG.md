@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-09
+
+### Added
+- **Self-restart on update.** Applying an update now restarts aiman
+  automatically (exits and lets systemd/launchd bring it back, or relaunches
+  detached when run from a terminal), so new code takes effect without a manual
+  restart. Added a **Restart aiman** button and `POST /api/restart`.
+- **Install as a background service from Settings.** A new *Background service*
+  section installs/uninstalls and reports status for **systemd** (Linux, system
+  or user unit), **launchd** (macOS LaunchAgent) and **Task Scheduler**
+  (Windows). Endpoints: `GET /api/service`, `POST /api/service/install`,
+  `POST /api/service/uninstall`.
+
 ## [1.5.5] - 2026-10-09
 
 ### Fixed

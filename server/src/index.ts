@@ -87,6 +87,12 @@ import {
   statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import {
+  serviceStatus,
+  installService,
+  uninstallService,
+  restartSelf,
+} from "./service";
 
 const json = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(data), {
@@ -774,10 +780,28 @@ async function handle(req: Request): Promise<Response> {
   if (p === "/api/update/apply" && method === "POST") {
     if (!user!.is_admin) return json({ error: "forbidden" }, 403);
     try {
-      return json(await applyUpdate());
+      const r = await applyUpdate();
+      setTimeout(restartSelf, 800); // reboot into the new version
+      return json({ ...r, restarting: true });
     } catch (e) {
       return json({ error: String(e) }, 500);
     }
+  }
+
+  if (p === "/api/restart" && method === "POST") {
+    if (!user!.is_admin) return json({ error: "forbidden" }, 403);
+    setTimeout(restartSelf, 400);
+    return json({ ok: true, restarting: true });
+  }
+
+  if (p === "/api/service" && method === "GET") return json(serviceStatus());
+  if (p === "/api/service/install" && method === "POST") {
+    if (!user!.is_admin) return json({ error: "forbidden" }, 403);
+    return json(await installService());
+  }
+  if (p === "/api/service/uninstall" && method === "POST") {
+    if (!user!.is_admin) return json({ error: "forbidden" }, 403);
+    return json(await uninstallService());
   }
 
   if (p === "/api/me/onboarded" && method === "POST") {

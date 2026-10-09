@@ -31,6 +31,14 @@ export type Session = {
   usage: Usage | null;
 };
 
+export type ServiceStatus = {
+  platform: string;
+  manager: "systemd" | "launchd" | "schtasks" | null;
+  installed: boolean;
+  path: string | null;
+  detail?: string;
+};
+
 export type UpdateInfo = {
   current: string;
   latest: string | null;
@@ -372,8 +380,15 @@ export const api = {
     fetch("/api/update" + (force ? "?check=1" : "")).then(j<UpdateInfo>),
   applyUpdate: () =>
     fetch("/api/update/apply", { method: "POST" }).then(
-      j<{ ok: boolean; latest: string; restartRequired: boolean }>,
+      j<{ ok: boolean; latest: string; restartRequired: boolean; restarting?: boolean }>,
     ),
+  restart: () =>
+    fetch("/api/restart", { method: "POST" }).then(j<{ ok: boolean; restarting: boolean }>),
+  service: () => fetch("/api/service").then(j<ServiceStatus>),
+  serviceInstall: () =>
+    fetch("/api/service/install", { method: "POST" }).then(j<{ ok: boolean; detail: string }>),
+  serviceUninstall: () =>
+    fetch("/api/service/uninstall", { method: "POST" }).then(j<{ ok: boolean; detail: string }>),
   setOnboarded: (onboarded: boolean) =>
     fetch("/api/me/onboarded", {
       method: "POST",
