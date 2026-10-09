@@ -264,6 +264,15 @@ async function serveStatic(url: URL): Promise<Response> {
 
 const OC_WS = OPENCODE_URL.replace(/^http/, "ws");
 
+/** Absolute path to the opencode CLI (so terminals don't rely on PATH). */
+const OPENCODE_BIN = (() => {
+  try {
+    return Bun.which("opencode") ?? "opencode";
+  } catch {
+    return "opencode";
+  }
+})();
+
 type PtySocket = {
   ptyID: string;
   query: string;
@@ -750,6 +759,7 @@ async function handle(req: Request): Promise<Response> {
     } catch {}
     return json({
       opencodeUrl: OPENCODE_URL,
+      opencodeBin: OPENCODE_BIN,
       terminal,
       platform: process.platform,
       onboarded: getUserOnboarded(user!.id),

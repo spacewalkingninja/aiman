@@ -36,7 +36,7 @@ export async function copyToClipboard(text: string): Promise<void> {
 }
 
 const posixQuote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
-const winQuote = (s: string) => `"${s.replace(/"/g, '""')}"`;
+const psQuote = (s: string) => `'${s.replace(/'/g, "''")}'`;
 
 /**
  * An embedded terminal backed by opencode's native PTY API (no Python needed,
@@ -107,10 +107,12 @@ export default function TerminalPane({
 
     (async () => {
       let opencodeUrl = "http://127.0.0.1:4096";
-      let platform = "linux";
+      let opencodeBin = "opencode";
+      let platform = /Windows/i.test(navigator.userAgent) ? "win32" : "linux";
       try {
         const cfg = await api.config();
         opencodeUrl = cfg.opencodeUrl || opencodeUrl;
+        opencodeBin = cfg.opencodeBin || opencodeBin;
         platform = cfg.platform || platform;
       } catch {}
 
@@ -123,14 +125,21 @@ export default function TerminalPane({
       if (directory) body.cwd = directory;
 
       if (sessionId) {
-        // Launch the opencode TUI attached to this session. The binary must be
-        // started through a shell (spawning it directly as the PTY leader
-        // aborts), so we wrap it per-platform.
-        const attach = ["opencode", "attach", opencodeUrl, "--session", sessionId];
+        // Launch the opencode TUI attached to this session. Start it through a
+        // shell with the binary's absolute path (spawning it directly as the
+        // PTY leader aborts, and bare "opencode" may not be on the PTY's PATH).
+        const attach = [opencodeBin, "attach", opencodeUrl, "--session", sessionId];
         if (directory) attach.push("--dir", directory);
         if (platform === "win32") {
-          body.command = "cmd.exe";
-          body.args = ["/c", attach.map(winQuote).join(" ")];
+          body.command = "powershell.exe";
+          body.args = [
+            "-NoProfile",
+            "-Command",
+            "& " + [opencodeBin, "attach", opencodeUrl, "--session", sessionId]
+              .concat(directory ? ["--dir", directory] : [])
+              .map(psQuote)
+              .join(" "),
+          ];
         } else {
           body.command = "/bin/bash";
           body.args = ["-lc", "exec " + attach.map(posixQuote).join(" ")];

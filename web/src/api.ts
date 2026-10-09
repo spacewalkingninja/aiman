@@ -361,6 +361,7 @@ export const api = {
     fetch("/api/config").then(
       j<{
         opencodeUrl: string;
+        opencodeBin: string;
         terminal: boolean;
         platform: string;
         onboarded: boolean;

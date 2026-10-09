@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.3] - 2026-10-09
+
+### Fixed
+- **Windows: "opencode is not recognized" in session terminals.** Session
+  terminals now launch opencode by its **absolute path** (resolved server-side
+  and exposed as `opencodeBin` in `/api/config`), so they no longer depend on
+  the PTY's PATH. On Windows the TUI is started via PowerShell (robust quoting)
+  instead of cmd. This also stops the follow-on `PUT /oc/pty/{id}` 404s, which
+  happened because the PTY had already exited.
+
 ## [1.5.2] - 2026-10-09
 
 ### Added
