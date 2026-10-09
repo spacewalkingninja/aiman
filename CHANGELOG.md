@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-10-09
+
+### Fixed
+- **Uploaded files didn't appear in the file manager.** They're saved to a
+  hidden `.aiman-uploads/` folder, which the tree walk filtered out; that folder
+  is now included.
+- **Paste / drag-drop files into the terminal did nothing.** xterm stops
+  propagation of its textarea's paste event, so the previous React handlers
+  never fired. The native terminal now uses native, capture-phase listeners on
+  the pane, so dropping or pasting images/PDF/etc. works in the in-app session
+  and in pop-out windows. (The vendored pyxtermjs page already used native
+  listeners.)
+
 ## [1.7.0] - 2026-10-09
 
 ### Added

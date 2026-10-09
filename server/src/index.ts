@@ -431,7 +431,13 @@ async function buildTree(
   const out: TreeNode[] = [];
   for (const e of entries) {
     if (budget.left <= 0) break;
-    if (e.name.startsWith(".") && e.name !== ".env" && e.name !== ".gitignore") continue;
+    if (
+      e.name.startsWith(".") &&
+      e.name !== ".env" &&
+      e.name !== ".gitignore" &&
+      e.name !== ".aiman-uploads"
+    )
+      continue;
     if (FS_IGNORE.has(e.name)) continue;
     const childRel = relDir ? `${relDir}/${e.name}` : e.name;
     const childAbs = join(absDir, e.name);

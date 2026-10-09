@@ -54,6 +54,7 @@ export default function TerminalPane({
   directory?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const theme = useStore().theme;
@@ -79,11 +80,14 @@ export default function TerminalPane({
     setStatus("");
   }
 
-  function handlePaste(e: React.ClipboardEvent) {
-    const dt = e.clipboardData;
-    if (!dt) return;
-    const files: File[] = [];
-    if (dt.files?.length) files.push(...Array.from(dt.files));
+  // Keep the latest handler available to the native listeners (xterm stops
+  // propagation of paste/drop, so React synthetic handlers never fire).
+  const uploadRef = useRef(uploadFiles);
+  uploadRef.current = uploadFiles;
+
+  function filesFromClipboard(dt: DataTransfer | null): File[] {
+    if (!dt) return [];
+    const files: File[] = Array.from(dt.files ?? []);
     if (!files.length && dt.items) {
       for (let i = 0; i < dt.items.length; i++) {
         const it = dt.items[i]!;
@@ -93,23 +97,7 @@ export default function TerminalPane({
         }
       }
     }
-    if (files.length) {
-      e.preventDefault();
-      uploadFiles(files);
-    }
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    const files = Array.from(e.dataTransfer?.files ?? []);
-    if (files.length) uploadFiles(files);
-  }
-
-  function handleDragOver(e: React.DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = "copy";
+    return files;
   }
 
   // Keep the terminal's colours in sync with the active app theme.
@@ -158,6 +146,31 @@ export default function TerminalPane({
 
     const ro = new ResizeObserver(() => doResize());
     if (hostRef.current) ro.observe(hostRef.current);
+
+    // Paste / drag-drop files onto the terminal. xterm stops propagation of its
+    // textarea's paste event, so use native (capture-phase) listeners here.
+    const pane = paneRef.current;
+    const onPaste = (e: ClipboardEvent) => {
+      const files = filesFromClipboard(e.clipboardData);
+      if (files.length) {
+        e.preventDefault();
+        e.stopPropagation();
+        uploadRef.current(files);
+      }
+    };
+    const onDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    };
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      if (files.length) uploadRef.current(files);
+    };
+    pane?.addEventListener("paste", onPaste, true);
+    pane?.addEventListener("dragover", onDragOver, true);
+    pane?.addEventListener("drop", onDrop, true);
 
     (async () => {
       let opencodeUrl = "http://127.0.0.1:4096";
@@ -247,6 +260,9 @@ export default function TerminalPane({
     return () => {
       disposed = true;
       ro.disconnect();
+      pane?.removeEventListener("paste", onPaste, true);
+      pane?.removeEventListener("dragover", onDragOver, true);
+      pane?.removeEventListener("drop", onDrop, true);
       wsRef.current = null;
       try {
         ws?.close();
@@ -259,12 +275,7 @@ export default function TerminalPane({
   }, [sessionId, directory]);
 
   return (
-    <div
-      className="terminal-pane"
-      onPaste={handlePaste}
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-    >
+    <div ref={paneRef} className="terminal-pane">
       {status && <div className="terminal-status">{status}</div>}
       <div ref={hostRef} className="terminal-host" />
     </div>
