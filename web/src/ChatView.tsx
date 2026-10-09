@@ -1,6 +1,8 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Composer from "./Composer";
 import PartView from "./PartView";
+
+const TerminalPane = lazy(() => import("./TerminalPane"));
 import { api, type MessageEntry, type QuestionRequest, type SessionStats } from "./api";
 import { fmtCost, fmtTokens } from "./StatsView";
 import {
@@ -82,6 +84,49 @@ export default function ChatView() {
   }, [id, statusType]);
 
   if (id === "__new__") return <NewSession />;
+
+  // Terminal chat mode: embed the opencode TUI attached to this session.
+  if (s.chatMode === "terminal") {
+    return (
+      <div className="chat">
+        <div className="chat-head">
+          <button
+            className="btn ghost sm"
+            onClick={() => store.set({ activeSessionId: null })}
+            title="Back to list"
+          >
+            ←
+          </button>
+          <div className="chat-title">{session?.title || "(untitled)"}</div>
+          <span className="badge">{session?.directory}</span>
+          <div className="spacer" />
+          <button className="btn ghost sm" onClick={loadDiff} title="Show changed files">
+            diff
+          </button>
+          <button className="btn ghost sm" onClick={() => togglePin(session!)}>
+            {session?.pinned ? "★" : "☆"}
+          </button>
+          <button
+            className="btn ghost sm"
+            onClick={() => archiveSession(id, session?.timeArchived == null)}
+          >
+            {session?.timeArchived == null ? "🗄 archive" : "unarchive"}
+          </button>
+        </div>
+        {diff && (
+          <div className="small" style={{ padding: "6px 20px", borderBottom: "1px solid var(--border)" }}>
+            <b>Changed files:</b> {(diff.files ?? []).join(", ") || "none"}{" "}
+            <button className="btn ghost sm" onClick={() => setDiff(null)}>
+              hide
+            </button>
+          </div>
+        )}
+        <Suspense fallback={<div className="empty">loading terminal…</div>}>
+          <TerminalPane sessionId={id} directory={session?.directory} />
+        </Suspense>
+      </div>
+    );
+  }
 
   async function loadDiff() {
     const d = await api.diff(id).catch(() => null);

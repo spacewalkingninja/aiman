@@ -12,7 +12,16 @@ import {
   type Todo,
 } from "./api";
 
-export type View = "chat" | "search" | "terminal" | "users" | "stats" | "profiles";
+export type View =
+  | "chat"
+  | "search"
+  | "terminal"
+  | "users"
+  | "stats"
+  | "profiles"
+  | "settings";
+
+export type ChatMode = "web" | "terminal";
 
 export type Filters = {
   archived: "0" | "1" | "all";
@@ -56,6 +65,7 @@ type State = {
   menu: MenuKind;
   profiles: Profile[];
   activeProfile: string | null;
+  chatMode: ChatMode;
 };
 
 let state: State = {
@@ -82,6 +92,8 @@ let state: State = {
   menu: null,
   profiles: [],
   activeProfile: null,
+  chatMode: ((typeof localStorage !== "undefined" && localStorage.getItem("oc_chat_mode")) ||
+    "terminal") as ChatMode,
 };
 
 const listeners = new Set<() => void>();
@@ -113,6 +125,12 @@ export function setModel(key: string) {
 export function setAgent(name: string) {
   localStorage.setItem("oc_agent", name);
   set({ agent: name });
+}
+
+export function setChatMode(mode: ChatMode) {
+  localStorage.setItem("oc_chat_mode", mode);
+  set({ chatMode: mode });
+  toast(mode === "terminal" ? "chat: terminal (opencode TUI)" : "chat: web");
 }
 
 export function cycleAgent(dir = 1) {
@@ -294,6 +312,7 @@ const VIEW_PATHS: Record<View, string> = {
   terminal: "/terminal",
   users: "/users",
   profiles: "/profiles",
+  settings: "/settings",
 };
 
 /** Canonical URL path for a given view + active session. */
@@ -321,7 +340,7 @@ export async function applyLocation() {
     return set({ view: "chat", activeSessionId: null });
   }
 
-  const views: View[] = ["search", "stats", "terminal", "users", "profiles"];
+  const views: View[] = ["search", "stats", "terminal", "users", "profiles", "settings"];
   const view = views.find((v) => v === first);
   if (view) return set({ view });
   return set({ view: "chat" });

@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-09
+
+### Added
+- **Terminal chat (default).** Sessions can now open directly as the opencode
+  TUI embedded in the browser. Opening a session launches
+  `opencode attach <server> --session <id>` inside an xterm.js terminal, with
+  live streaming, tools and slash commands in one view.
+- **Native PTY backend — pyxtermjs is no longer required.** The terminal is
+  powered by opencode's own PTY API and a WebSocket bridge in the manager
+  (`/ptyws/{id}`), so it works on Linux, macOS and Windows with no Python or
+  external terminal server. xterm.js is bundled into the web build.
+- **Settings view** (`/settings`) to choose the chat mode: *Terminal chat*
+  (default) or *Web chat*. The choice is stored per browser and the backend
+  reports PTY availability.
+- The generic **Terminal** tab now uses the native PTY too.
+
+### Changed
+- Installers are now self-contained: they install **Bun** and **opencode**
+  (`opencode-ai`) when missing, and Linux/macOS installs prefer the prebuilt
+  release tarball (which already contains the built UI) so no toolchain is
+  needed.
+- App config exposes `platform`; terminal commands are wrapped per-OS because
+  spawning the opencode binary directly as a PTY leader aborts.
+
 ## [1.1.0] - 2026-10-09
 
 ### Added

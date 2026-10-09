@@ -16,20 +16,27 @@ opencode is working.
   tool calls, files).
 - **Usage statistics** — tokens, cost, cache and per-model breakdowns, daily
   activity charts and top sessions.
-- **Chat view** — streamed messages, tool output, todos, permission prompts and
+- **Terminal chat (default)** — opens each session as the full opencode TUI
+  embedded in the browser, attached to that session (streaming, tools and slash
+  commands in one view). Switch to the classic structured chat in **Settings**.
+- **Web chat** — streamed messages, tool output, todos, permission prompts and
   interactive question prompts.
+- **Native terminal** — the embedded terminal runs on opencode's own PTY API and
+  xterm.js; no Python or external terminal server, works on Linux, macOS and
+  Windows.
 - **Users** — first-run admin setup, add/promote/disable/delete users.
 - **Profiles** — bundle provider API keys and switch them at runtime.
 - **Deep links** — every view has a URL (`/sessions`, `/search`, `/stats`, …) and
   each session has its own handle (`/sessions/<id>`).
 - **Cross-platform** — runs on Linux, macOS and Windows via [Bun](https://bun.sh).
-- **Optional terminal** — embeds a browser terminal via pyxtermjs.
 
 ## Requirements
 
-- [opencode](https://opencode.ai) (the manager reads its SQLite database and
-  talks to `opencode serve`).
-- [Bun](https://bun.sh) — installed automatically by the installer scripts.
+Both are installed automatically by the installer scripts:
+
+- [Bun](https://bun.sh) — the runtime and web build tool.
+- [opencode](https://opencode.ai) (`opencode-ai`) — the manager reads its SQLite
+  database and talks to `opencode serve` / its native PTY.
 
 ## Install
 
@@ -88,7 +95,7 @@ Everything is optional and can be set via environment variables:
 | `HOST`          | `127.0.0.1`                               | bind host                                |
 | `PORT`          | `4097`                                    | HTTP port                                |
 | `OPENCODE_URL`  | `http://127.0.0.1:4096`                   | opencode server URL                      |
-| `TERMINAL_URL`  | `http://127.0.0.1:4098`                   | optional pyxtermjs terminal backend      |
+| `TERMINAL_URL`  | `http://127.0.0.1:4098`                   | legacy pyxtermjs backend (not required)  |
 
 Default data locations by platform:
 
@@ -104,17 +111,30 @@ bun run --cwd web dev     # Vite dev server (proxies to the manager on :4097)
 bun run dev               # manager in watch mode on :4097
 ```
 
-The manager proxies `/oc/*` to `opencode serve` and `/terminal/*` to pyxtermjs,
-so the Vite dev server works without extra CORS setup.
+The manager proxies `/oc/*` (including the PTY) to `opencode serve` and bridges
+terminals over `/ptyws/*`, so the Vite dev server works without extra CORS setup.
+
+## Chat modes
+
+Open a session and it launches the opencode TUI attached to it inside the
+browser (**terminal chat**, the default). Switch to the structured React chat
+under **Settings** (`/settings`). The choice is remembered per browser.
+
+The embedded terminal uses opencode's native PTY API:
+
+- `POST /oc/pty` creates a PTY (the manager proxies it to opencode),
+- the browser connects to `/ptyws/{id}`, which the manager bridges over a
+  WebSocket to `opencode /pty/{id}/connect`,
+- xterm.js renders it — all bundled, no external terminal server.
 
 ## Architecture
 
-| Path       | What it is                                                        |
-| ---------- | ----------------------------------------------------------------- |
-| `server/`  | Bun HTTP server: REST API, auth, FTS index, opencode proxy        |
-| `web/`     | React + Vite single-page app (builds to `dist/`)                  |
-| `bin/`     | `aiman` launcher                                                  |
-| `scripts/` | Installers                                                        |
+| Path       | What it is                                                             |
+| ---------- | ---------------------------------------------------------------------- |
+| `server/`  | Bun HTTP server: REST API, auth, FTS index, opencode + PTY WebSocket proxy |
+| `web/`     | React + Vite single-page app (builds to `dist/`)                       |
+| `bin/`     | `aiman` launcher                                                       |
+| `scripts/` | Installers                                                             |
 
 ## License
 

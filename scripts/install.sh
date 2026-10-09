@@ -3,13 +3,17 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/spacewalkingninja/aiman/main/scripts/install.sh | bash
 #
+# Everything needed is bundled or installed here — no system Python/Node, no
+# external terminal server. After install you only need `aiman`.
+#
 # Options (env vars):
 #   AIMAN_APP_DIR   where to install the app      (default: ~/.aiman/app)
 #   AIMAN_BIN_DIR   where to put the launcher     (default: ~/.local/bin)
 #   AIMAN_REF       git ref to install            (default: main)
 set -euo pipefail
 
-REPO="https://github.com/spacewalkingninja/aiman.git"
+REPO_SLUG="spacewalkingninja/aiman"
+REPO="https://github.com/${REPO_SLUG}.git"
 APP_DIR="${AIMAN_APP_DIR:-$HOME/.aiman/app}"
 BIN_DIR="${AIMAN_BIN_DIR:-$HOME/.local/bin}"
 REF="${AIMAN_REF:-main}"
@@ -26,23 +30,51 @@ fi
 BUN="$(command -v bun || echo "$HOME/.bun/bin/bun")"
 info "Using Bun at $BUN ($("$BUN" --version))"
 
-# ---- 2. Source code -------------------------------------------------------
+# ---- 2. opencode ----------------------------------------------------------
+if ! command -v opencode >/dev/null 2>&1; then
+  info "Installing opencode (npm: opencode-ai)..."
+  "$BUN" install -g opencode-ai || {
+    echo "   Could not install opencode automatically." >&2
+    echo "   Install it manually from https://opencode.ai and re-run." >&2
+  }
+fi
+
+# ---- 3. App source --------------------------------------------------------
+build_if_needed() {
+  if [ ! -f "$APP_DIR/dist/index.html" ]; then
+    info "Building the web UI..."
+    ( cd "$APP_DIR/web" && "$BUN" install && "$BUN" run build )
+  fi
+}
+
 if [ -f "package.json" ] && grep -q '"name": "aiman"' package.json 2>/dev/null; then
   APP_DIR="$(pwd)"
   info "Installing from current checkout: $APP_DIR"
-elif [ -d "$APP_DIR/.git" ]; then
-  info "Updating existing install in $APP_DIR..."
-  git -C "$APP_DIR" fetch --depth 1 origin "$REF"
-  git -C "$APP_DIR" checkout -q FETCH_HEAD
+  build_if_needed
 else
-  info "Cloning $REPO ($REF) into $APP_DIR..."
-  mkdir -p "$(dirname "$APP_DIR")"
-  git clone --depth 1 --branch "$REF" "$REPO" "$APP_DIR"
-fi
+  # Prefer the latest prebuilt release (bundles dist, so no build needed).
+  TARBALL_URL="$(curl -fsSL "https://api.github.com/repos/${REPO_SLUG}/releases/latest" 2>/dev/null \
+    | grep -oE '"browser_download_url":[[:space:]]*"[^"]*aiman-[0-9][^"]*\.tar\.gz"' \
+    | head -1 | grep -oE 'https://[^"]+')" || true
 
-# ---- 3. Build web UI ------------------------------------------------------
-info "Installing web dependencies and building the UI..."
-( cd "$APP_DIR/web" && "$BUN" install && "$BUN" run build )
+  if [ -n "${TARBALL_URL:-}" ]; then
+    info "Downloading latest release..."
+    TMP="$(mktemp -d)"
+    curl -fsSL "$TARBALL_URL" -o "$TMP/aiman.tgz"
+    tar -xzf "$TMP/aiman.tgz" -C "$TMP"
+    SRC="$(find "$TMP" -maxdepth 1 -type d -name 'aiman-*' | head -1)"
+    rm -rf "$APP_DIR"
+    mkdir -p "$(dirname "$APP_DIR")"
+    mv "$SRC" "$APP_DIR"
+    rm -rf "$TMP"
+  else
+    info "Cloning $REPO ($REF) into $APP_DIR..."
+    rm -rf "$APP_DIR"
+    mkdir -p "$(dirname "$APP_DIR")"
+    git clone --depth 1 --branch "$REF" "$REPO" "$APP_DIR"
+  fi
+  build_if_needed
+fi
 
 # ---- 4. Launcher ----------------------------------------------------------
 mkdir -p "$BIN_DIR"

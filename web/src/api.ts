@@ -327,4 +327,30 @@ export const api = {
   stats: () => fetch("/api/stats").then(j<Stats>),
   sessionStats: (sessionId: string) =>
     fetch(`/api/sessions/${sessionId}/stats`).then(j<SessionStats>),
+
+  config: () =>
+    fetch("/api/config").then(
+      j<{ opencodeUrl: string; terminal: boolean; platform: string }>,
+    ),
+
+  // ---- opencode native PTY (terminal) ----
+  createPty: (body: {
+    command?: string;
+    args?: string[];
+    cwd?: string;
+    title?: string;
+    env?: Record<string, string>;
+  }) =>
+    fetch("/oc/pty", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(j<{ id: string; title: string; command: string; args: string[]; cwd: string }>),
+  updatePty: (id: string, body: { title?: string; size?: { rows: number; cols: number } }) =>
+    fetch(`/oc/pty/${id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }).then(j),
+  deletePty: (id: string) => fetch(`/oc/pty/${id}`, { method: "DELETE" }).then(j),
 };

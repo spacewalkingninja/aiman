@@ -13,6 +13,7 @@ export default defineConfig({
     proxy: {
       "/api": { target: "http://127.0.0.1:4097", changeOrigin: true },
       "/oc": { target: "http://127.0.0.1:4097", changeOrigin: true, ws: true },
+      "/ptyws": { target: "http://127.0.0.1:4097", changeOrigin: true, ws: true },
       "/terminal": {
         target: "http://127.0.0.1:4098",
         changeOrigin: true,

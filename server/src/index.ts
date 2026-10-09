@@ -178,11 +178,10 @@ const TERMINAL_FALLBACK = `<!doctype html><html><head><meta charset="utf-8">
 <title>Terminal unavailable</title>
 <style>body{font-family:system-ui,sans-serif;background:#111418;color:#c9d1d9;display:flex;height:100vh;margin:0;align-items:center;justify-content:center}
 .box{max-width:520px;padding:24px;line-height:1.5}code{background:#1c2128;padding:2px 6px;border-radius:4px}</style></head>
-<body><div class="box"><h2>Terminal backend not running</h2>
-<p>The web terminal is an optional component backed by <b>pyxtermjs</b>.
-Start it on port 4098, or set <code>TERMINAL_URL</code> to point elsewhere.</p>
-<pre><code>python3 vendor/pyxtermjs/app.py</code></pre>
-<p class="muted">The rest of the manager works without it.</p></div></body></html>`;
+<body><div class="box"><h2>Legacy terminal backend not running</h2>
+<p>This route is the optional legacy <b>pyxtermjs</b> backend. The manager's
+built-in terminal uses opencode's native PTY and does not need it.</p>
+<p class="muted">Set <code>TERMINAL_URL</code> if you really want the legacy backend.</p></div></body></html>`;
 
 /** HTTP proxy to the optional pyxtermjs terminal backend. */
 async function proxyTerminal(req: Request, url: URL): Promise<Response> {
@@ -222,6 +221,85 @@ async function serveStatic(url: URL): Promise<Response> {
   const index = Bun.file(join(DIST, "index.html"));
   if (await index.exists()) return new Response(index);
   return new Response("frontend not built yet", { status: 404 });
+}
+
+// ---- WebSocket bridge to opencode's native PTY ----------------------------
+// The browser cannot reach opencode's port directly, so we upgrade a socket on
+// /ptyws/{ptyID} and relay frames to `opencode/pty/{ptyID}/connect`.
+
+const OC_WS = OPENCODE_URL.replace(/^http/, "ws");
+
+type PtySocket = {
+  ptyID: string;
+  query: string;
+  upstream: WebSocket | null;
+  pending: unknown[];
+};
+
+function ptyUpgrade(req: Request, server: any, url: URL): Response | undefined {
+  if (!authenticate(req)) return new Response("unauthorized", { status: 401 });
+  const ptyID = decodeURIComponent(url.pathname.slice("/ptyws/".length));
+  if (!ptyID) return new Response("missing pty id", { status: 400 });
+  const data: PtySocket = { ptyID, query: url.search.slice(1), upstream: null, pending: [] };
+  const ok = server.upgrade(req, { data });
+  return ok ? undefined : new Response("websocket upgrade failed", { status: 400 });
+}
+
+function wsOpen(ws: any) {
+  const data = ws.data as PtySocket;
+  const target = `${OC_WS}/pty/${encodeURIComponent(data.ptyID)}/connect${
+    data.query ? "?" + data.query : ""
+  }`;
+  let upstream: WebSocket;
+  try {
+    upstream = new WebSocket(target);
+  } catch {
+    ws.close();
+    return;
+  }
+  upstream.binaryType = "arraybuffer";
+  data.upstream = upstream;
+  upstream.addEventListener("open", () => {
+    for (const m of data.pending) {
+      try {
+        upstream.send(m as any);
+      } catch {}
+    }
+    data.pending = [];
+  });
+  upstream.addEventListener("message", (ev: any) => {
+    try {
+      ws.send(ev.data);
+    } catch {}
+  });
+  upstream.addEventListener("close", () => {
+    try {
+      ws.close();
+    } catch {}
+  });
+  upstream.addEventListener("error", () => {
+    try {
+      ws.close();
+    } catch {}
+  });
+}
+
+function wsMessage(ws: any, msg: string | Uint8Array) {
+  const data = ws.data as PtySocket;
+  if (data.upstream && data.upstream.readyState === WebSocket.OPEN) {
+    try {
+      data.upstream.send(msg as any);
+    } catch {}
+  } else {
+    data.pending.push(msg);
+  }
+}
+
+function wsClose(ws: any) {
+  const data = ws.data as PtySocket;
+  try {
+    data.upstream?.close();
+  } catch {}
 }
 
 async function handle(req: Request): Promise<Response> {
@@ -421,6 +499,15 @@ async function handle(req: Request): Promise<Response> {
     });
   }
 
+  if (p === "/api/config") {
+    let terminal = false;
+    try {
+      const r = await fetch(OPENCODE_URL + "/pty", { method: "GET" });
+      terminal = r.ok;
+    } catch {}
+    return json({ opencodeUrl: OPENCODE_URL, terminal, platform: process.platform });
+  }
+
   if (p === "/api/sessions" && method === "GET") return json(listSessions(url));
 
   if (p === "/api/stats" && method === "GET") return json(aggregateStats());
@@ -543,7 +630,20 @@ Bun.serve({
   hostname: HOST,
   idleTimeout: 255,
   development: false,
-  fetch: handle,
+  async fetch(req, server) {
+    const url = new URL(req.url);
+    if (url.pathname.startsWith("/ptyws/")) {
+      const res = ptyUpgrade(req, server, url);
+      if (res) return res;
+      return undefined;
+    }
+    return handle(req);
+  },
+  websocket: {
+    open: wsOpen,
+    message: wsMessage,
+    close: wsClose,
+  },
 });
 
 console.log(`opencode-manager listening on http://${HOST}:${PORT}  (upstream ${OPENCODE_URL})`);

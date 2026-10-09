@@ -16,6 +16,7 @@ import TerminalView from "./TerminalView";
 import Users from "./Users";
 import StatsView from "./StatsView";
 import Profiles from "./Profiles";
+import SettingsView from "./SettingsView";
 import Overlays from "./Overlays";
 import Login from "./Login";
 
@@ -63,13 +64,21 @@ export default function App() {
           open<span>code</span> · sessions
         </div>
         <div className="tabs">
-          {(["chat", "search", "stats", "terminal"] as const).map((v) => (
+          {(["chat", "search", "stats", "terminal", "settings"] as const).map((v) => (
             <button
               key={v}
               className={"tab" + (s.view === v ? " active" : "")}
               onClick={() => setView(v)}
             >
-              {v === "chat" ? "Sessions" : v === "search" ? "Search" : v === "stats" ? "Stats" : "Terminal"}
+              {v === "chat"
+                ? "Sessions"
+                : v === "search"
+                  ? "Search"
+                  : v === "stats"
+                    ? "Stats"
+                    : v === "terminal"
+                      ? "Terminal"
+                      : "Settings"}
             </button>
           ))}
           {isAdmin && (
@@ -124,6 +133,7 @@ export default function App() {
           {s.view === "terminal" && <TerminalView />}
           {s.view === "users" && isAdmin && <Users />}
           {s.view === "profiles" && <Profiles />}
+          {s.view === "settings" && <SettingsView />}
         </div>
       </div>
 
