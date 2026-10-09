@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-10-09
+
+### Fixed
+- **Treemap only rendered file code after opening and closing a file.** The
+  size-tracking effect that gates the on-screen preview threshold only re-ran
+  when the editor toggled, so on first load (before the tree/container mounted)
+  it bailed and never observed the map size — file rectangles stayed empty until
+  a forced remount. It now also re-runs when the tree loads.
+
 ## [1.3.2] - 2026-10-09
 
 ### Fixed

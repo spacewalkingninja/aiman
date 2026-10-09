@@ -170,7 +170,8 @@ export default function CodeMap({ directories }: { directories: string[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dir]);
 
-  // Track the visible size of the map for preview thresholds.
+  // Track the visible size of the map for preview thresholds. Re-run whenever
+  // the map element mounts (after the tree loads, or after leaving the editor).
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -179,7 +180,7 @@ export default function CodeMap({ directories }: { directories: string[] }) {
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [editor]);
+  }, [editor, tree]);
 
   const placed = useMemo(() => {
     if (!tree) return [];
