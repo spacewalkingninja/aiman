@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-10-09
+
+### Changed
+- **Treemap auto-loads file contents.** Instead of only fetching when a cell is
+  large, the visualizer now auto-loads every text file up to **200 KB** (using a
+  binary *blocklist* so any language/config file counts, not a hand-written
+  allowlist), so contents are ready and render as soon as a cell is big enough.
+  Images render automatically straight from `/api/raw` as soon as the cell is a
+  usable thumbnail, with no fetch/open step. Concurrency-limited to 6 requests.
+
 ## [1.5.3] - 2026-10-09
 
 ### Fixed

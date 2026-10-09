@@ -99,7 +99,35 @@ function layoutNode(
   }
 }
 
-const IMG_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg", ".ico", ".bmp"]);
+const IMG_EXT = new Set([
+  ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".svg", ".ico", ".bmp", ".tif", ".tiff",
+]);
+
+// Everything that is NOT in this set is treated as text and auto-loaded (so we
+// don't have to keep an ever-growing allowlist of languages). Images are
+// handled separately (rendered straight from /api/raw).
+const BINARY_EXT = new Set([
+  // archives / packages
+  ".zip", ".gz", ".tgz", ".tar", ".bz2", ".xz", ".7z", ".rar", ".zst", ".lz", ".lzma",
+  ".jar", ".war", ".ear", ".apk", ".ipa", ".deb", ".rpm", ".dmg", ".iso", ".img",
+  ".pdf", ".ps", ".eps",
+  // documents / spreadsheets
+  ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods", ".odp", ".rtf",
+  // audio / video
+  ".mp3", ".wav", ".ogg", ".oga", ".flac", ".aac", ".m4a", ".opus", ".wma",
+  ".mp4", ".m4v", ".webm", ".mov", ".avi", ".mkv", ".wmv", ".flv", ".mpg", ".mpeg",
+  // fonts
+  ".woff", ".woff2", ".ttf", ".otf", ".eot",
+  // executables / compiled / bytecode
+  ".exe", ".dll", ".so", ".dylib", ".bin", ".o", ".obj", ".a", ".lib", ".class",
+  ".pyc", ".pyo", ".wasm", ".node", ".elf", ".out", ".com", ".msi", ".scr",
+  // databases / misc binary
+  ".db", ".sqlite", ".sqlite3", ".mdb", ".dat", ".pak", ".nib", ".swf", ".ipynb",
+]);
+
+const MAX_AUTO_BYTES = 200_000; // auto-load text files up to ~200k
+const MAX_AUTO_FILES = 2000; // safety cap on prefetched files
+const FETCH_CONCURRENCY = 6;
 
 function fileIcon(ext?: string): string {
   if (!ext) return "📄";
@@ -124,7 +152,7 @@ function humanSize(n: number): string {
 }
 
 type FileData = { type: "text" | "binary"; content?: string; ext?: string; mime?: string };
-const MIN_PREVIEW_AREA = 1400; // on-screen px² before a file renders its content
+const MIN_PREVIEW_AREA = 700; // on-screen px² before a text cell renders its content
 const MAX_RENDER_CHARS = 120_000; // cap rendered source per cell
 const ZOOM_MIN = 0.04;
 const ZOOM_MAX = 8000; // effectively "infinite" — enough to read a whole file
@@ -146,6 +174,7 @@ export default function CodeMap({ directories }: { directories: string[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null);
   const inflight = useRef<Set<string>>(new Set());
+  const requested = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (directories.length && !directories.includes(dir)) setDir(directories[0]!);
@@ -159,6 +188,8 @@ export default function CodeMap({ directories }: { directories: string[] }) {
     try {
       const t = await api.tree(dir, { depth: 10, max: 12000 });
       setTree(t);
+      setFiles({});
+      requested.current.clear();
       setView({ scale: 1, tx: 0, ty: 0 });
       setEditor(null);
     } catch (e) {
@@ -193,29 +224,46 @@ export default function CodeMap({ directories }: { directories: string[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree]);
 
-  // Fetch previews for files that are big enough on screen at the current zoom.
+  // Auto-load text files (≤200k) and any file that's big enough on screen.
+  // Images don't need fetching — they're rendered straight from /api/raw.
   useEffect(() => {
     if (!size.w || !size.h) return;
-    const big = placed
-      .filter((p) => p.node.type === "file")
-      .map((p) => {
-        const pw = (p.rect.w / 100) * size.w * view.scale;
-        const ph = (p.rect.h / 100) * size.h * view.scale;
-        return { p, area: pw * ph };
-      })
-      .filter((x) => x.area > MIN_PREVIEW_AREA)
-      .sort((a, b) => b.area - a.area)
-      .slice(0, 50);
-    for (const { p } of big) {
-      const path = p.node.path;
-      if (files[path] || inflight.current.has(path)) continue;
-      inflight.current.add(path);
-      api
-        .fileGet(dir, path)
-        .then((d) => setFiles((prev) => ({ ...prev, [path]: d })))
-        .catch(() => {})
-        .finally(() => inflight.current.delete(path));
+    const cand: { path: string; area: number }[] = [];
+    for (const p of placed) {
+      if (p.node.type !== "file") continue;
+      const ext = p.node.ext ?? "";
+      if (IMG_EXT.has(ext)) continue; // images render directly, no fetch
+      const pw = (p.rect.w / 100) * size.w * view.scale;
+      const ph = (p.rect.h / 100) * size.h * view.scale;
+      const area = pw * ph;
+      const isBinary = BINARY_EXT.has(ext);
+      const auto = !isBinary && p.node.size <= MAX_AUTO_BYTES;
+      if (auto || (area > MIN_PREVIEW_AREA && !isBinary)) {
+        cand.push({ path: p.node.path, area });
+      }
     }
+    // Visible/large files first, then everything else.
+    cand.sort((a, b) => b.area - a.area);
+    const todo = cand
+      .slice(0, MAX_AUTO_FILES)
+      .filter((c) => !requested.current.has(c.path));
+    for (const c of todo) requested.current.add(c.path);
+
+    let i = 0;
+    const worker = async () => {
+      while (i < todo.length) {
+        const c = todo[i++]!;
+        inflight.current.add(c.path);
+        try {
+          const d = await api.fileGet(dir, c.path);
+          setFiles((prev) => ({ ...prev, [c.path]: d }));
+        } catch {}
+        finally {
+          inflight.current.delete(c.path);
+        }
+      }
+    };
+    Promise.all(Array.from({ length: Math.min(FETCH_CONCURRENCY, todo.length) }, worker));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placed, view.scale, size.w, size.h, dir]);
 
@@ -372,7 +420,9 @@ export default function CodeMap({ directories }: { directories: string[] }) {
               const isDir = node.type === "dir";
               const data = files[node.path];
               const isImg = !isDir && IMG_EXT.has(node.ext ?? "");
-              const bigEnough = sw * sh > MIN_PREVIEW_AREA;
+              // Images render as soon as the cell is a usable thumbnail.
+              const showImg = isImg && sw > 40 && sh > 28;
+              const showText = !isImg && data?.type === "text" && sw * sh > MIN_PREVIEW_AREA;
               const showLabel = sw > 28 && sh > 11;
               const fontSize = Math.min(14, Math.max(7, Math.min(sw, sh) / 6));
               return (
@@ -397,7 +447,7 @@ export default function CodeMap({ directories }: { directories: string[] }) {
                       {sw > 120 && <span className="cm-size">{humanSize(node.size)}</span>}
                     </div>
                   )}
-                  {!isDir && bigEnough && isImg && (
+                  {showImg && (
                     <img
                       className="cm-img"
                       loading="lazy"
@@ -405,8 +455,8 @@ export default function CodeMap({ directories }: { directories: string[] }) {
                       alt={node.name}
                     />
                   )}
-                  {!isDir && bigEnough && !isImg && data?.type === "text" && (
-                    <pre className="cm-code">{data.content?.slice(0, MAX_RENDER_CHARS)}</pre>
+                  {showText && (
+                    <pre className="cm-code">{data?.content?.slice(0, MAX_RENDER_CHARS)}</pre>
                   )}
                 </div>
               );
